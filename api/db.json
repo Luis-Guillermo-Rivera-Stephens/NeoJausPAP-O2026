@@ -1,0 +1,65 @@
+{
+  "clients": [
+    {
+      "id": 1,
+      "name": "Ana García",
+      "email": "ana.garcia@email.com",
+      "phone": "+52 33 1234 5678"
+    },
+    {
+      "id": 2,
+      "name": "Luis Martínez",
+      "email": "luis.martinez@email.com",
+      "phone": "+52 33 8765 4321"
+    },
+    {
+      "id": 3,
+      "name": "María López",
+      "email": "maria.lopez@email.com",
+      "phone": "+52 33 5555 1212"
+    }
+  ],
+  "services": [
+    {
+      "id": 1,
+      "name": "Corte de cabello",
+      "description": "Corte y peinado básico"
+    },
+    {
+      "id": 2,
+      "name": "Manicure",
+      "description": "Cuidado y esmaltado de uñas"
+    },
+    {
+      "id": 3,
+      "name": "Masaje relajante",
+      "description": "Sesión de 60 minutos"
+    }
+  ],
+  "appointments": [
+    {
+      "id": "1",
+      "cliente_id": 1,
+      "servicio_id": 1,
+      "fecha_hora": "2026-09-10T10:00:00"
+    },
+    {
+      "id": "2",
+      "cliente_id": 1,
+      "servicio_id": 2,
+      "fecha_hora": "2026-09-12T16:30:00"
+    },
+    {
+      "id": "3",
+      "cliente_id": 2,
+      "servicio_id": 3,
+      "fecha_hora": "2026-09-11T09:00:00"
+    },
+    {
+      "id": "4",
+      "cliente_id": 3,
+      "servicio_id": 1,
+      "fecha_hora": "2026-09-15T14:00:00"
+    }
+  ]
+}

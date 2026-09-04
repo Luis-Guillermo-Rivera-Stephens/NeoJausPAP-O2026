@@ -1,0 +1,5 @@
+venv/
+.env
+context/
+.cursor 
+__pycache__/
