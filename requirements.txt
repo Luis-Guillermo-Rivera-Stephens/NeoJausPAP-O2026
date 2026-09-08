@@ -1,6 +1,0 @@
-openai-agents
-python-dotenv
-fastapi 
-uvicorn 
-httpx
-strawberry-graphql[fastapi]
