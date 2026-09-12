@@ -1,0 +1,34 @@
+# Base de datos local del PAP.
+#
+#   docker compose up -d        levanta la base (siembra sola la primera vez)
+#   docker compose down         la apaga, conservando los datos
+#   docker compose down -v      la borra por completo; el siguiente `up` re-siembra
+#
+# Puerto 5433 a proposito: el 5432 lo ocupa el Postgres de trabajo de erent. Nombre de
+# contenedor, volumen y puerto distintos => esta base no puede tocar aquella.
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: pap-postgres
+    environment:
+      POSTGRES_USER: pap
+      POSTGRES_PASSWORD: pap
+      POSTGRES_DB: papdb
+      # Sin esto la imagen arranca en UTC y los cortes por dia locales confunden.
+      TZ: America/Mexico_City
+    ports:
+      - "5433:5432"
+    volumes:
+      - pap-postgres-data:/var/lib/postgresql/data
+      # Postgres ejecuta estos .sql en orden alfabetico, solo al crear el volumen.
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pap -d papdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pap-postgres-data:
+    name: pap-postgres-data
