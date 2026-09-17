@@ -1,8 +1,10 @@
 from pathlib import Path
-
 from dotenv import load_dotenv
 
+# Carga .env desde la carpeta donde vive server.py
 load_dotenv(Path(__file__).resolve().parent / ".env")
+
+from api.db.db import check_connection
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -37,3 +39,7 @@ async def chat(body: ChatRequest) -> ChatResponse:
     )
     print(f"[AGENT] /chat respuesta: {reply!r}")
     return ChatResponse(reply=reply)
+
+@app.get("/health")
+async def health_check():
+    return {"status": "get_connection() is working" if check_connection() else "get_connection() failed"}

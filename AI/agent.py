@@ -1,6 +1,11 @@
-from agents import Agent
+from agents import Agent, set_tracing_disabled
+from openai import AsyncOpenAI
+import os
 
 from AI.tools import call_graphql
+
+client = AsyncOpenAI(base_url=os.getenv("AI_BASE_URL"), api_key=os.getenv("AI_API_KEY"))
+set_tracing_disabled(disabled=True)
 
 agent = Agent(
     name="GraphQL Agent",
@@ -14,3 +19,5 @@ agent = Agent(
     tools=[call_graphql],
     model="gpt-4o-mini",
 )
+
+

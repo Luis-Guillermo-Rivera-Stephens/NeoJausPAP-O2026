@@ -4,3 +4,4 @@ fastapi
 uvicorn 
 httpx
 strawberry-graphql[fastapi]
+psycopg[binary,pool]
