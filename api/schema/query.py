@@ -1,101 +1,166 @@
 """Queries raíz que el agente puede pedir a GraphQL."""
 
+from datetime import datetime
+from enum import Enum
 from typing import Optional
 
 import strawberry
-from psycopg.rows import dict_row
+from graphql import GraphQLError
 
-from api.db.db import get_connection
+from api.managers.aggregates import aggregate
+from api.managers import agencies as agencies_mgr
+from api.managers import advisors as advisors_mgr
+from api.managers import connections as connections_mgr
+from api.managers import conversations as conversations_mgr
+from api.managers import crm_clients as crm_mgr
+from api.managers import episodes as episodes_mgr
 from api.schema.whatsapp import (
     Agency,
     Advisor,
     Conversation,
     CrmClient,
+    EstadoHit,
     WhatsappConnection,
     _advisor_from_row,
     _agency_from_row,
     _connection_from_row,
     _conversation_from_row,
     _crm_client_from_row,
+    _estado_from_row,
 )
 
 
-def _fetch_all(sql: str, params: tuple[object, ...] = ()) -> list[dict]:
-    with get_connection() as conn:
-        with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(sql, params)
-            return list(cur.fetchall())
+@strawberry.enum
+class AggregateEntity(Enum):
+    CRM_CLIENTS = "CRM_CLIENTS"
+    MESSAGES = "MESSAGES"
+    CONVERSATIONS = "CONVERSATIONS"
 
 
-def _fetch_one(sql: str, params: tuple[object, ...]) -> Optional[dict]:
-    rows = _fetch_all(sql, params)
-    return rows[0] if rows else None
+@strawberry.enum
+class AggregateMetric(Enum):
+    COUNT = "COUNT"
+    COUNT_DISTINCT_CLIENTS = "COUNT_DISTINCT_CLIENTS"
+
+
+@strawberry.enum
+class AggregateGroup(Enum):
+    NONE = "NONE"
+    CLIENT_STATUS = "CLIENT_STATUS"
+    DIRECTION = "DIRECTION"
+    MESSAGE_TYPE = "MESSAGE_TYPE"
+    M_STATUS = "M_STATUS"
+    CONVERSATION_CATEGORY = "CONVERSATION_CATEGORY"
+    DAY = "DAY"
+    WEEK = "WEEK"
+    ADVISOR = "ADVISOR"
+    CONNECTION = "CONNECTION"
+
+
+@strawberry.type
+class AggregateBucket:
+    key: str
+    n: int
 
 
 @strawberry.type
 class Query:
     @strawberry.field
     def agencies(self, active_only: bool = True) -> list[Agency]:
-        sql = "SELECT * FROM real_state_agencies"
-        if active_only:
-            sql += " WHERE is_active = true"
-        return [_agency_from_row(row) for row in _fetch_all(sql + " ORDER BY name")]
+        return [_agency_from_row(row) for row in agencies_mgr.list_agencies(active_only)]
 
     @strawberry.field
     def agency(self, uid: strawberry.ID) -> Optional[Agency]:
-        row = _fetch_one("SELECT * FROM real_state_agencies WHERE uid = %s", (str(uid),))
+        row = agencies_mgr.get_agency(str(uid))
         return _agency_from_row(row) if row else None
 
     @strawberry.field
     def advisors(self) -> list[Advisor]:
-        return [_advisor_from_row(row) for row in _fetch_all("SELECT * FROM clients ORDER BY nickname")]
+        return [_advisor_from_row(row) for row in advisors_mgr.list_advisors()]
 
     @strawberry.field
     def crm_clients(
-        self, agency_id: Optional[strawberry.ID] = None, limit: int = 50
+        self,
+        agency_id: Optional[strawberry.ID] = None,
+        limit: int = 10,
+        q: Optional[str] = None,
+        client_status: Optional[str] = None,
     ) -> list[CrmClient]:
-        safe_limit = max(1, min(limit, 200))
-        sql = "SELECT * FROM crm_clients WHERE is_deleted = false"
-        params: tuple[object, ...] = ()
-        if agency_id is not None:
-            sql += " AND agency_id = %s"
-            params = (str(agency_id),)
-        rows = _fetch_all(sql + " ORDER BY cat DESC LIMIT %s", (*params, safe_limit))
+        rows = crm_mgr.list_crm_clients(
+            str(agency_id) if agency_id is not None else None,
+            limit,
+            q,
+            client_status,
+        )
         return [_crm_client_from_row(row) for row in rows]
 
     @strawberry.field
     def crm_client(self, uid: strawberry.ID) -> Optional[CrmClient]:
-        row = _fetch_one("SELECT * FROM crm_clients WHERE uid = %s AND is_deleted = false", (str(uid),))
+        row = crm_mgr.get_crm_client(str(uid))
         return _crm_client_from_row(row) if row else None
 
     @strawberry.field
     def connections(self, agency_id: Optional[strawberry.ID] = None) -> list[WhatsappConnection]:
-        sql = "SELECT * FROM whatsapp_connection"
-        params: tuple[object, ...] = ()
-        if agency_id is not None:
-            sql += " WHERE agency_id = %s"
-            params = (str(agency_id),)
-        return [_connection_from_row(row) for row in _fetch_all(sql + " ORDER BY name", params)]
+        rows = connections_mgr.list_connections(str(agency_id) if agency_id is not None else None)
+        return [_connection_from_row(row) for row in rows]
 
     @strawberry.field
     def conversations(
         self,
         connection_id: Optional[strawberry.ID] = None,
         client_id: Optional[strawberry.ID] = None,
-        limit: int = 50,
+        limit: int = 10,
+        q: Optional[str] = None,
     ) -> list[Conversation]:
-        safe_limit = max(1, min(limit, 200))
-        clauses: list[str] = []
-        params: list[object] = []
-        if connection_id is not None:
-            clauses.append("connection_id = %s")
-            params.append(str(connection_id))
-        if client_id is not None:
-            clauses.append("client_id = %s")
-            params.append(str(client_id))
-        sql = "SELECT * FROM whatsapp_conversation"
-        if clauses:
-            sql += " WHERE " + " AND ".join(clauses)
-        sql += " ORDER BY cat DESC LIMIT %s"
-        params.append(safe_limit)
-        return [_conversation_from_row(row) for row in _fetch_all(sql, tuple(params))]
+        rows = conversations_mgr.list_conversations(
+            str(connection_id) if connection_id is not None else None,
+            str(client_id) if client_id is not None else None,
+            limit,
+            q,
+        )
+        return [_conversation_from_row(row) for row in rows]
+
+    @strawberry.field
+    def buscar_estado(
+        self,
+        q: str,
+        client_id: Optional[strawberry.ID] = None,
+        limit: int = 10,
+    ) -> list[EstadoHit]:
+        rows = episodes_mgr.buscar_estado(
+            q,
+            str(client_id) if client_id is not None else None,
+            limit,
+        )
+        return [_estado_from_row(row) for row in rows]
+
+    @strawberry.field
+    def agregado(
+        self,
+        entity: AggregateEntity,
+        metric: AggregateMetric = AggregateMetric.COUNT,
+        group_by: AggregateGroup = AggregateGroup.NONE,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
+        agency_id: Optional[strawberry.ID] = None,
+        client_status: Optional[str] = None,
+        direction: Optional[str] = None,
+        connection_id: Optional[strawberry.ID] = None,
+        client_id: Optional[strawberry.ID] = None,
+    ) -> list[AggregateBucket]:
+        try:
+            rows = aggregate(
+                entity.name,
+                metric.name,
+                group_by.name,
+                since,
+                until,
+                str(agency_id) if agency_id is not None else None,
+                client_status,
+                direction,
+                str(connection_id) if connection_id is not None else None,
+                str(client_id) if client_id is not None else None,
+            )
+        except ValueError as error:
+            raise GraphQLError(str(error)) from error
+        return [AggregateBucket(key=row["key"], n=row["n"]) for row in rows]

@@ -58,6 +58,7 @@ CREATE TABLE clients (
     first_last_name varchar(32),
     email           varchar(254),
     phone_number    varchar(10),
+    agency_id       uuid         REFERENCES real_state_agencies (uid),
     CONSTRAINT clients_pkey PRIMARY KEY (uid)
 );
 

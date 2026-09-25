@@ -18,11 +18,12 @@ INSERT INTO real_state_agencies (uid, name, timezone, cat) VALUES
   ('a0000000-0000-4000-8000-000000000002', 'Grupo Costa Pacifico',     'America/Tijuana',     now() - interval '300 days');
 
 -- --- Asesores (usuarios de la plataforma) ------------------------------------
-INSERT INTO clients (uid, nickname, first_name, first_last_name, email, phone_number, cat) VALUES
-  ('c0000000-0000-4000-8000-000000000001', 'rgomez',   'Renata',  'Gomez',   'renata@riovere.mx',  '3311110001', now() - interval '390 days'),
-  ('c0000000-0000-4000-8000-000000000002', 'jsalas',   'Javier',  'Salas',   'javier@riovere.mx',  '3311110002', now() - interval '380 days'),
-  ('c0000000-0000-4000-8000-000000000003', 'mvega',    'Mariana', 'Vega',    'mariana@costapac.mx','6641110003', now() - interval '290 days'),
-  ('c0000000-0000-4000-8000-000000000004', 'aduarte',  'Andres',  'Duarte',  'andres@costapac.mx', '6641110004', now() - interval '280 days');
+-- agency_id viene de la migración 001; 1-2 Río Verde, 3-4 Costa Pacífico.
+INSERT INTO clients (uid, nickname, first_name, first_last_name, email, phone_number, agency_id, cat) VALUES
+  ('c0000000-0000-4000-8000-000000000001', 'rgomez',   'Renata',  'Gomez',   'renata@riovere.mx',  '3311110001', 'a0000000-0000-4000-8000-000000000001', now() - interval '390 days'),
+  ('c0000000-0000-4000-8000-000000000002', 'jsalas',   'Javier',  'Salas',   'javier@riovere.mx',  '3311110002', 'a0000000-0000-4000-8000-000000000001', now() - interval '380 days'),
+  ('c0000000-0000-4000-8000-000000000003', 'mvega',    'Mariana', 'Vega',    'mariana@costapac.mx','6641110003', 'a0000000-0000-4000-8000-000000000002', now() - interval '290 days'),
+  ('c0000000-0000-4000-8000-000000000004', 'aduarte',  'Andres',  'Duarte',  'andres@costapac.mx', '6641110004', 'a0000000-0000-4000-8000-000000000002', now() - interval '280 days');
 
 -- --- Numeros de WhatsApp ("mi numero") ---------------------------------------
 -- La agencia 1 tiene DOS numeros: por eso un mismo contacto puede tener dos

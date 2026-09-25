@@ -1,4 +1,4 @@
-"""Tipos y resolvers Strawberry para el dominio inmobiliario/WhatsApp."""
+"""Tipos y resolvers Strawberry: superficie mínima para el agente."""
 
 from __future__ import annotations
 
@@ -6,39 +6,21 @@ from datetime import datetime
 from typing import Annotated, Optional
 
 import strawberry
-from psycopg.rows import dict_row
 from strawberry.scalars import JSON
 
-from api.db.db import get_connection
-
-
-def _one(sql: str, params: tuple[object, ...]) -> Optional[dict]:
-    with get_connection() as conn:
-        with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(sql, params)
-            return cur.fetchone()
-
-
-def _many(sql: str, params: tuple[object, ...] = ()) -> list[dict]:
-    with get_connection() as conn:
-        with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(sql, params)
-            return list(cur.fetchall())
+from api.managers import advisors as advisors_mgr
+from api.managers import agencies as agencies_mgr
+from api.managers import connections as connections_mgr
+from api.managers import conversations as conversations_mgr
+from api.managers import crm_clients as crm_mgr
+from api.managers import episodes as episodes_mgr
+from api.managers import messages as messages_mgr
 
 
 @strawberry.type
 class Agency:
     uid: strawberry.ID
-    name: str
-    timezone: str
     is_active: bool
-    cat: datetime
-    uat: datetime
-
-    @strawberry.field
-    def connections(self) -> list[Annotated["WhatsappConnection", strawberry.lazy("api.schema.whatsapp")]]:
-        rows = _many("SELECT * FROM whatsapp_connection WHERE agency_id = %s ORDER BY name", (str(self.uid),))
-        return [_connection_from_row(row) for row in rows]
 
 
 @strawberry.type
@@ -49,6 +31,7 @@ class Advisor:
     first_last_name: Optional[str]
     email: Optional[str]
     phone_number: Optional[str]
+    agency_id: Optional[strawberry.ID]
 
 
 @strawberry.type
@@ -60,34 +43,28 @@ class CrmClient:
     primary_email: Optional[str]
     primary_phone: Optional[str]
     phone_country_code: str
-    preferred_contact_method: Optional[str]
     client_status: Optional[str]
-    client_type: Optional[str]
-    lead_source: Optional[str]
-    tags: list[str]
-    comments: Optional[str]
     wa_id: Optional[str]
     wa_profile_name: Optional[str]
-    is_lost: bool
-    lost_reason: Optional[str]
-    lost_at: Optional[datetime]
     cat: datetime
-    _agency_id: strawberry.Private[str]
+    agency_id: strawberry.ID
     _assigned_to: strawberry.Private[str]
 
     @strawberry.field
     def agency(self) -> Optional[Annotated[Agency, strawberry.lazy("api.schema.whatsapp")]]:
-        row = _one("SELECT * FROM real_state_agencies WHERE uid = %s", (self._agency_id,))
+        row = agencies_mgr.get_agency(str(self.agency_id))
         return _agency_from_row(row) if row else None
 
     @strawberry.field
     def assigned_to(self) -> Optional[Annotated[Advisor, strawberry.lazy("api.schema.whatsapp")]]:
-        row = _one("SELECT * FROM clients WHERE uid = %s", (self._assigned_to,))
+        row = advisors_mgr.get_advisor(self._assigned_to)
         return _advisor_from_row(row) if row else None
 
     @strawberry.field
-    def conversations(self) -> list[Annotated["Conversation", strawberry.lazy("api.schema.whatsapp")]]:
-        rows = _many("SELECT * FROM whatsapp_conversation WHERE client_id = %s ORDER BY cat DESC", (str(self.uid),))
+    def conversations(
+        self, limit: int = 10
+    ) -> list[Annotated["Conversation", strawberry.lazy("api.schema.whatsapp")]]:
+        rows = conversations_mgr.list_by_client(str(self.uid), limit)
         return [_conversation_from_row(row) for row in rows]
 
 
@@ -95,22 +72,22 @@ class CrmClient:
 class WhatsappConnection:
     uid: strawberry.ID
     phone_e164: Optional[str]
-    display_phone: Optional[str]
     name: Optional[str]
-    status: str
     is_active: bool
-    cat: datetime
-    _agency_id: strawberry.Private[str]
+    agency_id: strawberry.ID
 
     @strawberry.field
-    def conversations(self) -> list[Annotated["Conversation", strawberry.lazy("api.schema.whatsapp")]]:
-        rows = _many("SELECT * FROM whatsapp_conversation WHERE connection_id = %s ORDER BY cat DESC", (str(self.uid),))
+    def conversations(
+        self, limit: int = 10
+    ) -> list[Annotated["Conversation", strawberry.lazy("api.schema.whatsapp")]]:
+        rows = conversations_mgr.list_by_connection(str(self.uid), limit)
         return [_conversation_from_row(row) for row in rows]
 
 
 @strawberry.type
 class Conversation:
     uid: strawberry.ID
+    agency_id: strawberry.ID
     conversation_category: Optional[str]
     window_expires_at: Optional[datetime]
     last_read_at: Optional[datetime]
@@ -120,23 +97,26 @@ class Conversation:
 
     @strawberry.field
     def client(self) -> Optional[Annotated[CrmClient, strawberry.lazy("api.schema.whatsapp")]]:
-        row = _one("SELECT * FROM crm_clients WHERE uid = %s", (self._client_id,))
+        row = crm_mgr.get_crm_client(self._client_id)
         return _crm_client_from_row(row) if row else None
 
     @strawberry.field
     def connection(self) -> Optional[Annotated[WhatsappConnection, strawberry.lazy("api.schema.whatsapp")]]:
-        row = _one("SELECT * FROM whatsapp_connection WHERE uid = %s", (self._connection_id,))
+        row = connections_mgr.get_connection(self._connection_id)
         return _connection_from_row(row) if row else None
 
     @strawberry.field
-    def messages(self, limit: int = 50) -> list[Annotated["Message", strawberry.lazy("api.schema.whatsapp")]]:
-        safe_limit = max(1, min(limit, 200))
-        rows = _many("SELECT * FROM whatsapp_message WHERE conversation_id = %s ORDER BY cat DESC LIMIT %s", (str(self.uid), safe_limit))
+    def messages(
+        self, limit: int = 10, q: Optional[str] = None
+    ) -> list[Annotated["Message", strawberry.lazy("api.schema.whatsapp")]]:
+        rows = messages_mgr.list_by_conversation(str(self.uid), limit, q)
         return [_message_from_row(row) for row in rows]
 
     @strawberry.field
-    def episodes(self) -> list[Annotated["ConversationEpisode", strawberry.lazy("api.schema.whatsapp")]]:
-        rows = _many("SELECT * FROM whatsapp_conversation_episode WHERE conversation_id = %s ORDER BY window_to DESC", (str(self.uid),))
+    def episodes(
+        self, limit: int = 5, q: Optional[str] = None
+    ) -> list[Annotated["ConversationEpisode", strawberry.lazy("api.schema.whatsapp")]]:
+        rows = episodes_mgr.list_by_conversation(str(self.uid), limit, q)
         return [_episode_from_row(row) for row in rows]
 
 
@@ -145,12 +125,21 @@ class Message:
     uid: strawberry.ID
     direction: str
     message_type: Optional[str]
-    content: Optional[JSON]
     body: Optional[str]
     m_status: Optional[str]
-    error_code: Optional[str]
-    wamid: Optional[str]
     cat: datetime
+
+
+@strawberry.type
+class EstadoHit:
+    source: str
+    conversation_id: strawberry.ID
+    client_name: str
+    client_status: Optional[str]
+    text: str
+    cat: datetime
+    window_from: Optional[datetime]
+    window_to: Optional[datetime]
 
 
 @strawberry.type
@@ -160,36 +149,99 @@ class ConversationEpisode:
     window_to: datetime
     summary: str
     key_topics: JSON
-    model: str
-    cost_usd_micros: int
     cat: datetime
 
 
 def _agency_from_row(row: dict) -> Agency:
-    return Agency(uid=str(row["uid"]), name=row["name"], timezone=row["timezone"], is_active=row["is_active"], cat=row["cat"], uat=row["uat"])
+    return Agency(uid=str(row["uid"]), is_active=row["is_active"])
 
 
 def _advisor_from_row(row: dict) -> Advisor:
-    return Advisor(uid=str(row["uid"]), nickname=row["nickname"], first_name=row["first_name"], first_last_name=row["first_last_name"], email=row["email"], phone_number=row["phone_number"])
+    agency_id = row.get("agency_id")
+    return Advisor(
+        uid=str(row["uid"]),
+        nickname=row["nickname"],
+        first_name=row["first_name"],
+        first_last_name=row["first_last_name"],
+        email=row["email"],
+        phone_number=row["phone_number"],
+        agency_id=str(agency_id) if agency_id else None,
+    )
 
 
 def _crm_client_from_row(row: dict) -> CrmClient:
-    return CrmClient(uid=str(row["uid"]), first_name=row["first_name"], first_last_name=row["first_last_name"], preferred_name=row["preferred_name"], primary_email=row["primary_email"], primary_phone=row["primary_phone"], phone_country_code=row["phone_country_code"], preferred_contact_method=row["preferred_contact_method"], client_status=row["client_status"], client_type=row["client_type"], lead_source=row["lead_source"], tags=row["tags"] or [], comments=row["comments"], wa_id=row["wa_id"], wa_profile_name=row["wa_profile_name"], is_lost=row["is_lost"], lost_reason=row["lost_reason"], lost_at=row["lost_at"], cat=row["cat"], _agency_id=str(row["agency_id"]), _assigned_to=str(row["assigned_to"]))
+    return CrmClient(
+        uid=str(row["uid"]),
+        first_name=row["first_name"],
+        first_last_name=row["first_last_name"],
+        preferred_name=row["preferred_name"],
+        primary_email=row["primary_email"],
+        primary_phone=row["primary_phone"],
+        phone_country_code=row["phone_country_code"],
+        client_status=row["client_status"],
+        wa_id=row["wa_id"],
+        wa_profile_name=row["wa_profile_name"],
+        cat=row["cat"],
+        agency_id=str(row["agency_id"]),
+        _assigned_to=str(row["assigned_to"]),
+    )
 
 
 def _connection_from_row(row: dict) -> WhatsappConnection:
-    return WhatsappConnection(uid=str(row["uid"]), phone_e164=row["phone_e164"], display_phone=row["display_phone"], name=row["name"], status=row["status"], is_active=row["is_active"], cat=row["cat"], _agency_id=str(row["agency_id"]))
+    return WhatsappConnection(
+        uid=str(row["uid"]),
+        phone_e164=row["phone_e164"],
+        name=row["name"],
+        is_active=row["is_active"],
+        agency_id=str(row["agency_id"]),
+    )
 
 
 def _conversation_from_row(row: dict) -> Conversation:
-    return Conversation(uid=str(row["uid"]), conversation_category=row["conversation_category"], window_expires_at=row["window_expires_at"], last_read_at=row["last_read_at"], cat=row["cat"], _client_id=str(row["client_id"]), _connection_id=str(row["connection_id"]))
+    return Conversation(
+        uid=str(row["uid"]),
+        agency_id=str(row["agency_id"]),
+        conversation_category=row["conversation_category"],
+        window_expires_at=row["window_expires_at"],
+        last_read_at=row["last_read_at"],
+        cat=row["cat"],
+        _client_id=str(row["client_id"]),
+        _connection_id=str(row["connection_id"]),
+    )
 
 
 def _message_from_row(row: dict) -> Message:
     content = row["content"]
     body = content.get("body") if isinstance(content, dict) else None
-    return Message(uid=str(row["uid"]), direction=row["direction"], message_type=row["message_type"], content=content, body=body, m_status=row["m_status"], error_code=row["error_code"], wamid=row["wamid"], cat=row["cat"])
+    return Message(
+        uid=str(row["uid"]),
+        direction=row["direction"],
+        message_type=row["message_type"],
+        body=body,
+        m_status=row["m_status"],
+        cat=row["cat"],
+    )
+
+
+def _estado_from_row(row: dict) -> EstadoHit:
+    return EstadoHit(
+        source=row["source"],
+        conversation_id=str(row["conversation_id"]),
+        client_name=row["client_name"],
+        client_status=row["client_status"],
+        text=row["text"] or "",
+        cat=row["cat"],
+        window_from=row["window_from"],
+        window_to=row["window_to"],
+    )
 
 
 def _episode_from_row(row: dict) -> ConversationEpisode:
-    return ConversationEpisode(uid=str(row["uid"]), window_from=row["window_from"], window_to=row["window_to"], summary=row["summary"], key_topics=row["key_topics"], model=row["model"], cost_usd_micros=row["cost_usd_micros"], cat=row["cat"])
+    return ConversationEpisode(
+        uid=str(row["uid"]),
+        window_from=row["window_from"],
+        window_to=row["window_to"],
+        summary=row["summary"],
+        key_topics=row["key_topics"],
+        cat=row["cat"],
+    )
