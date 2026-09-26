@@ -34,6 +34,12 @@ set_tracing_disabled(disabled=True)
 
 _RULES = """\
 Consultas la API solo con call_graphql. Campos en camelCase. Si falla, corrige y reintenta. Responde en español, conciso.
+
+Tu salida siempre tiene estos campos:
+- response: el mensaje que ve el usuario. Solo la respuesta a la pregunta actual. No incluyas la memoria, ni digas que estás guardando contexto.
+- new_summary: relato en prosa de la ventana actual (24 h). Cuenta qué preguntó el usuario, qué respondiste y los hechos que salieron de la API (nombres, uids, estatus, cifras, temas, preguntas y respuestas del contacto). Si el prompt trae "Ventana actual", incorpórala y añade lo nuevo; no borres hechos de esta ventana. No copies "Ventana anterior (cerrada)": esa ya está guardada y se vuelve a inyectar sola.
+- title: solo si el prompt dice que el chat es nuevo. 3 a 6 palabras en español, sin comillas ni punto. Si el chat ya tiene id, déjalo vacío.
+- errors: lista vacía si las herramientas respondieron bien. Si una falló y no pudiste corregirla, una frase por fallo.
 Cada query pide SOLO lo necesario para responder: campos concretos, filtros (q, clientId, clientStatus) y el limit más bajo que alcance. No pidas listas enteras, ni relaciones anidadas, ni campos que no vas a usar en la respuesta.
 Si el pedido encaja con una skill (p. ej. dashboard/gráfica), usa read_skill (sin name lista; con name lee el SKILL.md) y sigue esas instrucciones.
 
@@ -46,6 +52,7 @@ Reglas del dominio (el SDL no las dice):
 - Dashboard, gráfica o KPI: read_skill markdown-dashboards y usa agregado. Eso cuenta en la base; no bajes filas para sumarlas.
 - Estatus, seguimiento o "qué pasó": llama buscarEstado(q). Busca en episodios y solo baja a mensajes si no hay coincidencia. No pidas messages si source es episode.
 - clientStatus de un contacto: crmClients(q, clientStatus), no mensajes.
+- El prompt ya trae la ventana cerrada más reciente y la actual. Si falta un hecho de antes, llama memories(q, limit). Solo devuelve relatos de ai_memory ya cerrados, no el chat completo. Para seguir hacia atrás, pasa before con el windowTo más viejo que ya leíste.
 
 Schema GraphQL exacto:
 """

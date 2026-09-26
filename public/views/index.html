@@ -10,12 +10,17 @@
   <link rel="stylesheet" href="/styles/chat.css">
 </head>
 <body>
+  <div class="shell">
+  <aside class="chats" aria-label="Chats">
+    <button type="button" id="new-chat" class="new-chat">Nuevo</button>
+    <ul id="chat-list"></ul>
+  </aside>
   <div class="app">
     <header class="bar">
       <span class="avatar" aria-hidden="true">P</span>
       <div class="identity">
         <h1>PAP</h1>
-        <p>Agente de la inmobiliaria</p>
+        <p id="chat-title">Chat nuevo</p>
       </div>
     </header>
     <main id="log" class="log" aria-live="polite">
@@ -30,6 +35,7 @@
         </svg>
       </button>
     </form>
+  </div>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@11.12.0/dist/mermaid.min.js"></script>

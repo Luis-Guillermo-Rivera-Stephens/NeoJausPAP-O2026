@@ -8,6 +8,7 @@ import strawberry
 from graphql import GraphQLError
 
 from api.managers.aggregates import aggregate
+from api.managers import memory as memory_mgr
 from api.managers import agencies as agencies_mgr
 from api.managers import advisors as advisors_mgr
 from api.managers import connections as connections_mgr
@@ -61,6 +62,14 @@ class AggregateGroup(Enum):
 class AggregateBucket:
     key: str
     n: int
+
+
+@strawberry.type
+class MemoryWindow:
+    uid: strawberry.ID
+    window_from: datetime
+    window_to: datetime
+    summary: str
 
 
 @strawberry.type
@@ -164,3 +173,21 @@ class Query:
         except ValueError as error:
             raise GraphQLError(str(error)) from error
         return [AggregateBucket(key=row["key"], n=row["n"]) for row in rows]
+
+    @strawberry.field
+    def memories(
+        self,
+        q: Optional[str] = None,
+        limit: int = 5,
+        before: Optional[datetime] = None,
+    ) -> list[MemoryWindow]:
+        rows = memory_mgr.list_past_windows(q, limit, before)
+        return [
+            MemoryWindow(
+                uid=str(row["uid"]),
+                window_from=row["window_from"],
+                window_to=row["window_to"],
+                summary=row["summary"],
+            )
+            for row in rows
+        ]
