@@ -10,7 +10,7 @@ const chatTitle = document.getElementById("chat-title");
 const STORAGE_KEY = "pap-chat-id";
 let currentId = null;
 let historyHasMore = false;
-let oldestCat = null;
+let historyPage = 1;
 let loadingOlder = false;
 let chatsHasMore = false;
 let oldestChatUat = null;
@@ -120,7 +120,7 @@ function clearLog() {
   log.querySelectorAll(".msg").forEach((node) => node.remove());
   empty.hidden = false;
   historyHasMore = false;
-  oldestCat = null;
+  historyPage = 1;
 }
 
 function setCurrent(chat) {
@@ -167,33 +167,27 @@ async function loadChats(before) {
 async function openChat(chat) {
   setCurrent(chat);
   clearLog();
-  const params = new URLSearchParams({ chatId: chat.uid, limit: "30" });
-  const response = await fetch(`/chat/history?${params}`);
+  const response = await fetch(`/chat/${chat.uid}/history?page=1&limit=30`);
   if (!response.ok) return;
   const data = await response.json();
   historyHasMore = Boolean(data.hasMore);
-  const messages = data.messages || [];
-  if (messages.length) oldestCat = messages[0].cat;
-  for (const message of messages) await paintChat(message);
+  historyPage = data.page || 1;
+  for (const message of data.messages || []) await paintChat(message);
   log.scrollTop = log.scrollHeight;
 }
 
 async function loadOlder() {
-  if (!currentId || !historyHasMore || loadingOlder || !oldestCat) return;
+  if (!currentId || !historyHasMore || loadingOlder) return;
   loadingOlder = true;
   const previousHeight = log.scrollHeight;
+  const nextPage = historyPage + 1;
   try {
-    const params = new URLSearchParams({
-      chatId: currentId,
-      limit: "30",
-      before: oldestCat,
-    });
-    const response = await fetch(`/chat/history?${params}`);
+    const response = await fetch(`/chat/${currentId}/history?page=${nextPage}&limit=30`);
     if (!response.ok) return;
     const data = await response.json();
     historyHasMore = Boolean(data.hasMore);
+    historyPage = data.page || nextPage;
     const messages = data.messages || [];
-    if (messages.length) oldestCat = messages[0].cat;
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       await paintChat(messages[index], { prepend: true, stick: false });
     }
@@ -227,12 +221,10 @@ form.addEventListener("submit", async (event) => {
   const timer = setTimeout(() => controller.abort(), 120000);
 
   try {
-    const payload = { message };
-    if (currentId) payload.chat_id = currentId;
     const response = await fetch("/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ message, chat_id: currentId }),
       signal: controller.signal,
     });
     if (!response.ok) {

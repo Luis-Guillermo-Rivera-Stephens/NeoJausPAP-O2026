@@ -47,11 +47,6 @@ def _require_chat(chat_id: str) -> None:
         raise HTTPException(status_code=404, detail="Chat no encontrado")
 
 
-@app.post("/chats")
-async def create_chat():
-    return memory_mgr.create_chat()
-
-
 @app.get("/chats")
 async def get_chats(limit: int = 20, before: str | None = None):
     return memory_mgr.list_chats(limit, _parse_before(before))
@@ -59,12 +54,13 @@ async def get_chats(limit: int = 20, before: str | None = None):
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(body: ChatRequest) -> ChatResponse:
-    is_new = not body.chat_id
-    if is_new:
-        chat_id = memory_mgr.create_chat()["uid"]
-    else:
-        _require_chat(body.chat_id)
+    if body.chat_id:
         chat_id = body.chat_id
+        _require_chat(chat_id)
+        is_new = not memory_mgr.has_title(chat_id)
+    else:
+        chat_id = memory_mgr.create_chat()["uid"]
+        is_new = True
     print(f"[AGENT] /chat recibido: {body.message!r}")
     memory_mgr.append_message(chat_id, "user", body.message)
     closed, current = memory_mgr.context_for_prompt(chat_id)
@@ -100,10 +96,10 @@ async def chat(body: ChatRequest) -> ChatResponse:
     return ChatResponse(reply=reply, chat_id=chat_id, title=title)
 
 
-@app.get("/chat/history")
-async def chat_history(chatId: str, limit: int = 30, before: str | None = None):
-    _require_chat(chatId)
-    return memory_mgr.list_messages(chatId, limit, _parse_before(before))
+@app.get("/chat/{chat_id}/history")
+async def chat_history(chat_id: str, page: int = 1, limit: int = 30):
+    _require_chat(chat_id)
+    return memory_mgr.list_messages(chat_id, page, limit)
 
 @app.get("/health")
 async def health_check():

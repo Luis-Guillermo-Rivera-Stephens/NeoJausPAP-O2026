@@ -5,6 +5,7 @@ from typing import Optional
 
 from api.db.db import get_connection
 from api.managers._sql import fetch_all, fetch_one, like_pattern
+from api.managers.pagination import page_window
 
 WINDOW = timedelta(hours=24)
 
@@ -102,30 +103,29 @@ def get_title(thread_id: str) -> Optional[str]:
     return row["title"] if row else None
 
 
-def list_messages(
-    thread_id: str,
-    limit: int = 30,
-    before: Optional[datetime] = None,
-) -> dict:
+def list_messages(thread_id: str, page: int = 1, limit: int = 30) -> dict:
     if not _owned(thread_id):
-        return {"messages": [], "hasMore": False}
-    safe_limit = max(1, min(limit, 50))
-    sql = "SELECT role, body, cat FROM chat_messages WHERE chat_id = %s"
-    params: list[object] = [thread_id]
-    if before is not None:
-        sql += " AND cat < %s"
-        params.append(before)
-    sql += " ORDER BY cat DESC LIMIT %s"
-    params.append(safe_limit + 1)
-    rows = fetch_all(sql, tuple(params))
+        return {"messages": [], "hasMore": False, "page": 1}
+    safe_page, safe_limit, offset = page_window(page, limit)
+    rows = fetch_all(
+        """
+        SELECT role, body, cat
+        FROM chat_messages
+        WHERE chat_id = %s
+        ORDER BY cat DESC
+        LIMIT %s OFFSET %s
+        """,
+        (thread_id, safe_limit + 1, offset),
+    )
     has_more = len(rows) > safe_limit
-    page = list(reversed(rows[:safe_limit]))
+    page_rows = list(reversed(rows[:safe_limit]))
     return {
         "messages": [
             {"role": row["role"], "body": row["body"], "cat": row["cat"].isoformat()}
-            for row in page
+            for row in page_rows
         ],
         "hasMore": has_more,
+        "page": safe_page,
     }
 
 
