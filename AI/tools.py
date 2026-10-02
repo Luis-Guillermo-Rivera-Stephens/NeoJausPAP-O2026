@@ -44,6 +44,10 @@ def call_graphql(query: str) -> str:
 def read_skill(name: str = "") -> str:
     """Lista skills en AI/skills o lee el SKILL.md de una por nombre."""
     print(f"[TOOL] read_skill name={name!r}")
+    return load_skill(name)
+
+
+def load_skill(name: str = "") -> str:
     try:
         dirs = _skill_dirs()
         if not name.strip():

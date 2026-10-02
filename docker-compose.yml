@@ -29,6 +29,18 @@ services:
       retries: 10
     restart: unless-stopped
 
+  cache: 
+    image: redis:alpine
+    container_name: pap-redis
+    command: redis-server --requirepass pap
+    ports:
+      - "6379:6379"
+    volumes:
+      - pap-redis-data:/data
+    restart: unless-stopped
+  
 volumes:
   pap-postgres-data:
     name: pap-postgres-data
+  pap-redis-data:
+    name: pap-redis-data

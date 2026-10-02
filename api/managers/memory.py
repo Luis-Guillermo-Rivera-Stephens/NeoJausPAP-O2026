@@ -1,13 +1,18 @@
 """Historial en chats/chat_messages. El agente solo recibe ventanas de ai_memory."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Optional
 
+from api.db import cache as memory_cache
 from api.db.db import get_connection
 from api.managers._sql import fetch_all, fetch_one, like_pattern
 from api.managers.pagination import page_window
 
-WINDOW = timedelta(hours=24)
+
+def _utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
 
 
 def _advisor_id() -> str:
@@ -192,41 +197,68 @@ def list_past_windows(
 
 def context_for_prompt(thread_id: str) -> tuple[str, str]:
     """Última ventana cerrada y la ventana abierta. Nunca el historial de mensajes."""
+    cached = memory_cache.get_pair(thread_id)
+    if cached is not None:
+        print(f"[CACHE] hit chat={thread_id} closed={cached[0]!r} current={len(cached[1])} chars")
+        return cached
+    print(f"[CACHE] miss chat={thread_id}")
     rows = _latest(thread_id)
-    if not rows:
-        return "", ""
-    now = datetime.now(timezone.utc)
-    newest = rows[0]
-    if newest["window_to"] <= now:
-        return newest["summary"], ""
-    closed = rows[1]["summary"] if len(rows) > 1 else ""
-    return closed, newest["summary"]
+    closed, current = "", ""
+    if rows:
+        now = datetime.now(timezone.utc)
+        newest = rows[0]
+        if _utc(newest["window_to"]) <= now:
+            closed = newest["summary"]
+            memory_cache.put(thread_id, "closed", closed, _utc(newest["window_to"]), now)
+        else:
+            closed = rows[1]["summary"] if len(rows) > 1 else ""
+            if len(rows) > 1:
+                memory_cache.put(thread_id, "closed", closed, _utc(rows[1]["window_to"]), now)
+            current = newest["summary"]
+            memory_cache.put(thread_id, "current", current, _utc(newest["window_to"]), now)
+    print(f"[DB] contexto chat={thread_id} closed={closed!r} current={len(current)} chars")
+    return closed, current
 
 
 def save_current(thread_id: str, summary: str) -> None:
-    text = summary.strip()
-    if not text or not _owned(thread_id):
+    if not _owned(thread_id):
         return
     now = datetime.now(timezone.utc)
+    text = (summary or "").strip()
     rows = _latest(thread_id)
-    open_row = rows[0] if rows and rows[0]["window_to"] > now else None
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            if open_row:
+    open_row = rows[0] if rows and _utc(rows[0]["window_to"]) > now else None
+    if open_row:
+        kept = text or open_row["summary"]
+        if not kept:
+            return
+        with get_connection() as conn:
+            with conn.cursor() as cur:
                 cur.execute(
                     """
                     UPDATE ai_memory
                     SET summary = %s, updated_at = CURRENT_TIMESTAMP
                     WHERE uid = %s
                     """,
-                    (text, open_row["uid"]),
+                    (kept, open_row["uid"]),
                 )
-            else:
-                cur.execute(
-                    """
-                    INSERT INTO ai_memory (client_id, chat_id, window_from, window_to, summary)
-                    VALUES (%s, %s, %s, %s, %s)
-                    """,
-                    (_advisor_id(), thread_id, now, now + WINDOW, text),
-                )
+            conn.commit()
+        memory_cache.put_current(thread_id, kept, _utc(open_row["window_to"]), now)
+        return
+    if not text:
+        text = rows[0]["summary"] if rows else ""
+    if not text:
+        return
+    window_to = memory_cache.end_of_day(now)
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO ai_memory (client_id, chat_id, window_from, window_to, summary)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (_advisor_id(), thread_id, now, window_to, text),
+            )
         conn.commit()
+    memory_cache.put_current(thread_id, text, window_to, now)
+    if rows:
+        memory_cache.put(thread_id, "closed", rows[0]["summary"], _utc(rows[0]["window_to"]), now)

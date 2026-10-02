@@ -16,10 +16,12 @@ from strawberry.fastapi import GraphQLRouter
 from agents import Runner
 
 from AI.agent import agent
+from AI.tools import load_skill
 from api.managers import memory as memory_mgr
 from api.schema.schema import schema
 
 PUBLIC_DIR = Path(__file__).resolve().parent / "public"
+DASHBOARD_WORDS = ("dashboard", "gráfica", "grafica", "gráfico", "grafico", "kpi", "reporte", "barras", "pastel")
 
 app = FastAPI(title="PAP GraphQL + Agent")
 app.include_router(GraphQLRouter(schema), prefix="/graphql")
@@ -73,13 +75,19 @@ async def chat(body: ChatRequest) -> ChatResponse:
         parts.append(f"Ventana anterior (cerrada):\n{closed}")
     if current:
         parts.append(f"Ventana actual:\n{current}")
+    if any(word in body.message.lower() for word in DASHBOARD_WORDS):
+        parts.append(
+            "Skill markdown-dashboards (ya cargada, no llames read_skill). "
+            "response debe ser el dashboard en Markdown con este formato:\n"
+            + load_skill("markdown-dashboards")
+        )
     parts.append(f"Pregunta actual:\n{body.message}")
     result = await Runner.run(agent, "\n\n".join(parts))
     out = result.final_output
     reply = out.response if hasattr(out, "response") else str(out)
     summary = getattr(out, "new_summary", "") or ""
+    memory_mgr.save_current(chat_id, summary)
     if summary.strip():
-        memory_mgr.save_current(chat_id, summary)
         print(f"[AGENT] ventana actual: {summary!r}")
     memory_mgr.append_message(chat_id, "assistant", reply)
     title = None

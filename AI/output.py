@@ -3,7 +3,10 @@ from pydantic import BaseModel, Field
 
 class AiResponse(BaseModel):
     response: str = Field(
-        description="Mensaje que ve el usuario. Solo la respuesta, sin la memoria ni metadatos."
+        description=(
+            "Mensaje que ve el usuario, en Markdown (tablas y bloques ```mermaid``` se renderizan). "
+            "Solo la respuesta, sin la memoria ni metadatos."
+        )
     )
     new_summary: str = Field(
         description=(
