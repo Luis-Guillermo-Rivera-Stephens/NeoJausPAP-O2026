@@ -1,13 +1,11 @@
 """Queries raíz que el agente puede pedir a GraphQL."""
 
 from datetime import datetime
-from enum import Enum
 from typing import Optional
 
 import strawberry
-from graphql import GraphQLError
 
-from api.managers.aggregates import aggregate
+from api.schema import counts
 from api.managers import memory as memory_mgr
 from api.managers import agencies as agencies_mgr
 from api.managers import advisors as advisors_mgr
@@ -31,39 +29,6 @@ from api.schema.whatsapp import (
 )
 
 
-@strawberry.enum
-class AggregateEntity(Enum):
-    CRM_CLIENTS = "CRM_CLIENTS"
-    MESSAGES = "MESSAGES"
-    CONVERSATIONS = "CONVERSATIONS"
-
-
-@strawberry.enum
-class AggregateMetric(Enum):
-    COUNT = "COUNT"
-    COUNT_DISTINCT_CLIENTS = "COUNT_DISTINCT_CLIENTS"
-
-
-@strawberry.enum
-class AggregateGroup(Enum):
-    NONE = "NONE"
-    CLIENT_STATUS = "CLIENT_STATUS"
-    DIRECTION = "DIRECTION"
-    MESSAGE_TYPE = "MESSAGE_TYPE"
-    M_STATUS = "M_STATUS"
-    CONVERSATION_CATEGORY = "CONVERSATION_CATEGORY"
-    DAY = "DAY"
-    WEEK = "WEEK"
-    ADVISOR = "ADVISOR"
-    CONNECTION = "CONNECTION"
-
-
-@strawberry.type
-class AggregateBucket:
-    key: str
-    n: int
-
-
 @strawberry.type
 class MemoryWindow:
     uid: strawberry.ID
@@ -74,6 +39,12 @@ class MemoryWindow:
 
 @strawberry.type
 class Query:
+    count: int = counts.field("count")
+    kpis: counts.Kpis = counts.field("kpis")
+    count_by: list[counts.Bucket] = counts.field("count_by")
+    count_over_time: list[counts.Bucket] = counts.field("count_over_time")
+    count_compare: list[counts.CompareBucket] = counts.field("count_compare")
+
     @strawberry.field
     def agencies(self, active_only: bool = True) -> list[Agency]:
         return [_agency_from_row(row) for row in agencies_mgr.list_agencies(active_only)]
@@ -142,37 +113,6 @@ class Query:
             limit,
         )
         return [_estado_from_row(row) for row in rows]
-
-    @strawberry.field
-    def agregado(
-        self,
-        entity: AggregateEntity,
-        metric: AggregateMetric = AggregateMetric.COUNT,
-        group_by: AggregateGroup = AggregateGroup.NONE,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
-        agency_id: Optional[strawberry.ID] = None,
-        client_status: Optional[str] = None,
-        direction: Optional[str] = None,
-        connection_id: Optional[strawberry.ID] = None,
-        client_id: Optional[strawberry.ID] = None,
-    ) -> list[AggregateBucket]:
-        try:
-            rows = aggregate(
-                entity.name,
-                metric.name,
-                group_by.name,
-                since,
-                until,
-                str(agency_id) if agency_id is not None else None,
-                client_status,
-                direction,
-                str(connection_id) if connection_id is not None else None,
-                str(client_id) if client_id is not None else None,
-            )
-        except ValueError as error:
-            raise GraphQLError(str(error)) from error
-        return [AggregateBucket(key=row["key"], n=row["n"]) for row in rows]
 
     @strawberry.field
     def memories(

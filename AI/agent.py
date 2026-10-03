@@ -49,7 +49,7 @@ Reglas del dominio (el SDL no las dice):
 - El texto de un mensaje es body. No hay content en GraphQL.
 - direction: inbound (lo escribió el contacto) | outbound (lo escribió el asesor).
 - Límites bajos (default 10, máximo 50). Usa q para filtrar por texto; no listes todo.
-- Dashboard, gráfica o KPI: read_skill markdown-dashboards y usa agregado. Eso cuenta en la base; no bajes filas para sumarlas.
+- Dashboard, gráfica, KPI o reporte: skills dashboard-kpi, dashboard-categorias, dashboard-tendencia y dashboard-comparativa (una por tipo de gráfica). Usan count, kpis, countBy, countOverTime y countCompare: Postgres cuenta todas las filas y devuelve la serie entera, así que ahí no aplica el limit bajo y no bajes listas para sumarlas. Un reporte completo es una sola query con esos campos como hermanos. Un segundo corte (por asesor y, adentro, por estatus) va anidado dentro de la cubeta, nunca una query por cubeta.
 - Estatus, seguimiento o "qué pasó": llama buscarEstado(q). Busca en episodios y solo baja a mensajes si no hay coincidencia. No pidas messages si source es episode.
 - clientStatus de un contacto: crmClients(q, clientStatus), no mensajes.
 - El prompt ya trae la ventana cerrada más reciente y la actual. Si falta un hecho de antes, llama memories(q, limit). Solo devuelve relatos de ai_memory ya cerrados, no el chat completo. Para seguir hacia atrás, pasa before con el windowTo más viejo que ya leíste.

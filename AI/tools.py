@@ -33,7 +33,6 @@ def call_graphql(query: str) -> str:
     try:
         url = "http://localhost:8000/graphql"
         response = requests.post(url, json={"query": query})
-        print(f"[TOOL] call_graphql response={response.json()}")
         return response.json()
     except Exception as e:
         print(f"[TOOL] call_graphql error={e}")

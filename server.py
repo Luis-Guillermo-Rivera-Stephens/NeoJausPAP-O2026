@@ -21,7 +21,15 @@ from api.managers import memory as memory_mgr
 from api.schema.schema import schema
 
 PUBLIC_DIR = Path(__file__).resolve().parent / "public"
-DASHBOARD_WORDS = ("dashboard", "gráfica", "grafica", "gráfico", "grafico", "kpi", "reporte", "barras", "pastel")
+# Pista clara de un tipo de gráfica → se precarga solo esa skill.
+SKILL_WORDS = {
+    "dashboard-kpi": ("kpi", "indicador"),
+    "dashboard-categorias": ("pastel", "barras", "por estatus", "por asesor", "por tipo", "por fuente", "distribuci", "desglose"),
+    "dashboard-tendencia": ("tendencia", "por día", "por dia", "por semana", "evoluci", "histórico", "historico"),
+    "dashboard-comparativa": ("entrantes y salientes", "entrantes vs", "entrantes contra", "salientes y entrantes", "inbound", "outbound", "comparativ", "recibidos y enviados"),
+}
+# Sin pista de tipo, o con varias: reporte completo con las cuatro skills.
+REPORT_WORDS = ("dashboard", "reporte", "de la data", "gráfica", "grafica", "gráfico", "grafico")
 
 app = FastAPI(title="PAP GraphQL + Agent")
 app.include_router(GraphQLRouter(schema), prefix="/graphql")
@@ -47,6 +55,30 @@ def _parse_before(value: str | None) -> datetime | None:
 def _require_chat(chat_id: str) -> None:
     if not memory_mgr.owns(chat_id):
         raise HTTPException(status_code=404, detail="Chat no encontrado")
+
+
+def _dashboard_skills(message: str) -> list[str]:
+    text = message.lower()
+    hits = [name for name, words in SKILL_WORDS.items() if any(w in text for w in words)]
+    if len(hits) == 1:
+        return hits
+    if hits or any(w in text for w in REPORT_WORDS):
+        return list(SKILL_WORDS)
+    return []
+
+
+def _dashboard_prompt(skills: list[str]) -> str:
+    loaded = "\n\n".join(load_skill(name) for name in skills)
+    if len(skills) == 1:
+        return (
+            f"Skill {skills[0]} (ya cargada, no llames read_skill). "
+            f"response debe ser el dashboard en Markdown con este formato:\n{loaded}"
+        )
+    return (
+        "Reporte completo. Skills ya cargadas (no llames read_skill). Una sola query GraphQL "
+        "con campos hermanos (kpis, countBy, countOverTime, countCompare) y un bloque por serie, "
+        f"cada uno con el formato de su skill:\n{loaded}"
+    )
 
 
 @app.get("/chats")
@@ -75,12 +107,9 @@ async def chat(body: ChatRequest) -> ChatResponse:
         parts.append(f"Ventana anterior (cerrada):\n{closed}")
     if current:
         parts.append(f"Ventana actual:\n{current}")
-    if any(word in body.message.lower() for word in DASHBOARD_WORDS):
-        parts.append(
-            "Skill markdown-dashboards (ya cargada, no llames read_skill). "
-            "response debe ser el dashboard en Markdown con este formato:\n"
-            + load_skill("markdown-dashboards")
-        )
+    skills = _dashboard_skills(body.message)
+    if skills:
+        parts.append(_dashboard_prompt(skills))
     parts.append(f"Pregunta actual:\n{body.message}")
     result = await Runner.run(agent, "\n\n".join(parts))
     out = result.final_output
@@ -100,7 +129,6 @@ async def chat(body: ChatRequest) -> ChatResponse:
         f"output={usage.output_tokens} total={usage.total_tokens} "
         f"requests={usage.requests}"
     )
-    print(f"[AGENT] /chat respuesta: {reply!r}")
     return ChatResponse(reply=reply, chat_id=chat_id, title=title)
 
 
