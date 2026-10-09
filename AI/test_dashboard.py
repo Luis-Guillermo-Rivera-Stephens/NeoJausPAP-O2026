@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 load_dotenv(root / ".env")
 
-from AI.dashboard import check, render_result, splice
+from AI.dashboard import check, graphic_problem, render_result, splice
 
 
 def _rows(markdown: str) -> list[list[str]]:
@@ -37,6 +37,9 @@ def test_render_category():
     assert "otros" not in markdown
     assert _pct_sum(markdown) == 100.0
     assert "14" in markdown and "7" in markdown
+    assert "```chart" in markdown
+    assert '"horizontal": true' in markdown
+    assert "█" not in markdown
     assert "pie" not in markdown
 
 
@@ -57,7 +60,9 @@ def test_render_time():
     ]}
     markdown = render_result("tendencia", "Semanas", "query { countOverTime { key n } }", data)
     assert "15-06" in markdown and "07-09" in markdown
-    assert "xychart-beta" in markdown
+    assert '"horizontal": false' in markdown
+    assert '"type": "bar"' in markdown
+    assert "xychart-beta" not in markdown
     assert "457" in markdown
     assert _pct_sum(markdown) == 100.0
 
@@ -67,6 +72,48 @@ def test_render_compare_and_kpis():
         {"key": "total", "inbound": 951, "outbound": 709, "n": 1660, "usuarios": 50},
     ]})
     assert "951" in compare and "709" in compare and "1660" in compare
+    assert "```chart" not in compare
+    days = render_result("comparativa", "Días", "query { countCompare { key inbound outbound n usuarios } }", {"countCompare": [
+        {"key": "2026-09-01", "inbound": 10, "outbound": 4, "n": 14, "usuarios": 3},
+        {"key": "2026-09-02", "inbound": 8, "outbound": 6, "n": 14, "usuarios": 2},
+    ]})
+    assert "```chart" in days
+    assert '"horizontal": false' in days
+    assert "Entrantes" in days and "Salientes" in days
+    pie = render_result("categorias", "Estatus", "query { countBy { key n } }", {"countBy": [
+        {"key": "active", "n": 14},
+        {"key": "new", "n": 7},
+    ]}, "pie")
+    assert '"type": "pie"' in pie
+    scatter = render_result("comparativa", "Días", "query { countCompare { key inbound outbound n usuarios } }", {"countCompare": [
+        {"key": "2026-09-01", "inbound": 10, "outbound": 4, "n": 14, "usuarios": 3},
+        {"key": "2026-09-02", "inbound": 8, "outbound": 6, "n": 14, "usuarios": 2},
+    ]}, "scatter")
+    assert '"type": "scatter"' in scatter
+    assert '"x": 10' in scatter and '"y": 4' in scatter
+    assert graphic_problem("tendencia", "pie")
+    assert graphic_problem("categorias", "bar") is None
+    assert graphic_problem("reporte", "line") is None
+    composed = render_result(
+        "reporte",
+        "Dos asesores",
+        'query { rgomez: countOverTime(entity: MESSAGES, by: DAY) { key n } jsalas: countOverTime(entity: MESSAGES, by: DAY) { key n } }',
+        {
+            "rgomez": [{"key": "2026-09-09", "n": 27}, {"key": "2026-09-03", "n": 1}],
+            "jsalas": [{"key": "2026-09-12", "n": 16}, {"key": "2026-09-03", "n": 4}],
+        },
+        "line",
+    )
+    assert composed.count("```chart") == 1
+    assert '"type": "line"' in composed
+    assert "rgomez" in composed and "jsalas" in composed
+    assert "since 2026-09-01, until 2026-10-01, since" not in render_result(
+        "reporte",
+        "Corte",
+        'query { a: countOverTime(entity: MESSAGES, by: DAY, since: "2026-09-01T00:00:00-06:00", until: "2026-10-01T00:00:00-06:00") { key n } b: countOverTime(entity: MESSAGES, by: DAY, since: "2026-09-01T00:00:00-06:00", until: "2026-10-01T00:00:00-06:00") { key n } }',
+        {"a": [{"key": "2026-09-01", "n": 1}], "b": [{"key": "2026-09-01", "n": 2}]},
+        "line",
+    )
     kpis = render_result("kpi", "Base", "query { kpis { clients messages openWindows agencies } }", {"kpis": {
         "clients": 50, "messages": 1660, "openWindows": 0, "agencies": None,
     }})

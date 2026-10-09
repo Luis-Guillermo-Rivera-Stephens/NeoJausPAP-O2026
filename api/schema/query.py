@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Optional
 
 import strawberry
+from graphql import GraphQLError
 
 from api.schema import counts
 from api.managers import memory as memory_mgr
@@ -65,13 +66,18 @@ class Query:
         limit: int = 10,
         q: Optional[str] = None,
         client_status: Optional[str] = None,
+        advisor_id: Optional[strawberry.ID] = None,
     ) -> list[CrmClient]:
-        rows = crm_mgr.list_crm_clients(
-            str(agency_id) if agency_id is not None else None,
-            limit,
-            q,
-            client_status,
-        )
+        try:
+            rows = crm_mgr.list_crm_clients(
+                str(agency_id) if agency_id is not None else None,
+                limit,
+                q,
+                client_status,
+                str(advisor_id) if advisor_id is not None else None,
+            )
+        except ValueError as error:
+            raise GraphQLError(str(error)) from error
         return [_crm_client_from_row(row) for row in rows]
 
     @strawberry.field

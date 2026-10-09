@@ -44,6 +44,15 @@ app = FastAPI(title="PAP GraphQL + Agent")
 app.include_router(GraphQLRouter(schema), prefix="/graphql")
 
 
+@app.middleware("http")
+async def no_cache_assets(request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path == "/" or path.startswith(("/scripts", "/styles")):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 class ChatRequest(BaseModel):
     message: str
     chat_id: str | None = None
@@ -122,9 +131,16 @@ async def chat(body: ChatRequest) -> ChatResponse:
     kind = _dashboard_kind(body.message)
     if kind:
         parts.append(
-            "Es un dashboard. No uses call_graphql. "
+            "Es un dashboard. El conteo va en render_dashboard, no en call_graphql. "
+            "Si nombran a un asesor por nickname, primero call_graphql { advisors { uid nickname } } y filtra con advisorId (el uid). "
+            "clientId es el contacto, nunca el nickname. "
+            "Dos asesores día a día: un solo render_dashboard, kind reporte, graphic line, dos countOverTime con alias. Una sola gráfica. "
             "kind según el campo: count o kpis → kpi; countBy → categorias; "
             "countOverTime → tendencia; countCompare → comparativa. "
+            "countBy y countOverTime llevan { key n }. countCompare lleva { key inbound outbound n usuarios }. "
+            "direction es el string \"inbound\" o \"outbound\", nunca el enum INBOUND. "
+            "graphic: bar; pie solo categorias; line o area en tendencia o en un reporte de countOverTime; stacked o scatter solo comparativa. "
+            "Si solo piden otro dibujo, repite la misma query y cambia graphic. Heatmap no existe. "
             "En response, texto y {{dashboard:N}} por cada ok N."
         )
     parts.append(f"Pregunta actual:\n{body.message}")
@@ -171,7 +187,10 @@ async def health_check():
 
 @app.get("/")
 async def index():
-    return FileResponse(PUBLIC_DIR / "views" / "index.html")
+    return FileResponse(
+        PUBLIC_DIR / "views" / "index.html",
+        headers={"Cache-Control": "no-cache"},
+    )
 
 
 app.mount("/styles", StaticFiles(directory=PUBLIC_DIR / "styles"), name="styles")

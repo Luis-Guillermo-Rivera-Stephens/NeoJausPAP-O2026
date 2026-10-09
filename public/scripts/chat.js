@@ -25,10 +25,13 @@ function escapeHtml(value) {
 
 const renderer = new marked.Renderer();
 renderer.code = function ({ text, lang }) {
-  if ((lang || "").trim() === "mermaid") {
+  const language = (lang || "").trim();
+  if (language === "mermaid") {
     return `<div class="mermaid">${escapeHtml(text)}</div>`;
   }
-  const language = (lang || "").trim();
+  if (language === "chart") {
+    return `<div class="chart-pending">${escapeHtml(text)}</div>`;
+  }
   const cls = language ? ` class="language-${language}"` : "";
   return `<pre><code${cls}>${escapeHtml(text)}</code></pre>`;
 };
@@ -98,6 +101,163 @@ function typingNode() {
   return note;
 }
 
+const SERIES_COLOR = {
+  Entrantes: "#1f6a45",
+  Salientes: "#7d9a8a",
+};
+const SERIES_PALETTE = ["#1f6a45", "#b5833d", "#3d6f8f", "#8f4e46", "#5c6b4a"];
+const PIE_COLORS = ["#1f6a45", "#3d8f62", "#7d9a8a", "#c5d5cb", "#4e6b5c", "#17241d"];
+
+const CHART_SRC = "https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js";
+
+function drawChart(spec, host) {
+  const type = spec.type || "bar";
+  const labels = spec.labels || [];
+  const series = spec.series || [];
+  const font = { family: "IBM Plex Sans, sans-serif" };
+  const canvas = document.createElement("canvas");
+  host.append(canvas);
+  if (type === "pie") {
+    const values = (series[0] && series[0].data) || [];
+    new Chart(canvas, {
+      type: "pie",
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          backgroundColor: labels.map((_, i) => PIE_COLORS[i % PIE_COLORS.length]),
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: true, labels: { font } },
+          title: { display: false },
+        },
+      },
+    });
+    return;
+  }
+  if (type === "scatter") {
+    const points = spec.points || [];
+    new Chart(canvas, {
+      type: "scatter",
+      data: {
+        datasets: [{
+          data: points.map((point) => ({ x: point.x, y: point.y })),
+          backgroundColor: "#1f6a45",
+          pointRadius: 5,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label(ctx) {
+                const name = points[ctx.dataIndex]?.label || "";
+                return `${name}: entrantes ${ctx.parsed.x}, salientes ${ctx.parsed.y}`;
+              },
+            },
+          },
+        },
+        scales: {
+          x: { beginAtZero: true, title: { display: true, text: "Entrantes", font }, ticks: { font } },
+          y: { beginAtZero: true, title: { display: true, text: "Salientes", font }, ticks: { font } },
+        },
+      },
+    });
+    return;
+  }
+  const chartType = type === "line" || type === "area" ? "line" : "bar";
+  const stacked = type === "stacked";
+  const horizontal = (type === "bar" || stacked) && !!spec.horizontal;
+  new Chart(canvas, {
+    type: chartType,
+    data: {
+      labels,
+      datasets: series.map((item, index) => {
+        const color = SERIES_COLOR[item.name] || SERIES_PALETTE[index % SERIES_PALETTE.length];
+        return {
+          label: item.name,
+          data: item.data,
+          backgroundColor: color,
+          borderColor: color,
+          fill: type === "area",
+          borderRadius: chartType === "bar" ? 4 : 0,
+          maxBarThickness: 18,
+          tension: chartType === "line" ? 0.25 : 0,
+        };
+      }),
+    },
+    options: {
+      indexAxis: horizontal ? "y" : "x",
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: series.length > 1, labels: { font } },
+        title: { display: false },
+      },
+      scales: {
+        x: {
+          beginAtZero: true,
+          stacked,
+          ticks: { font },
+          grid: { display: !horizontal },
+        },
+        y: {
+          beginAtZero: true,
+          stacked,
+          ticks: { font },
+          grid: { display: horizontal },
+        },
+      },
+    },
+  });
+}
+
+function paintCharts(root) {
+  const blocks = [...root.querySelectorAll(".chart-pending, code.language-chart")];
+  if (!blocks.length) return;
+  const draw = () => {
+    for (const block of blocks) {
+      if (!block.isConnected) continue;
+      let spec;
+      try {
+        spec = JSON.parse(block.textContent || "");
+      } catch {
+        continue;
+      }
+      const host = document.createElement("div");
+      host.className = "chart";
+      const type = spec.type || "bar";
+      const labels = spec.labels || [];
+      let height = 220;
+      if (type === "pie") height = 260;
+      else if (type === "bar" && spec.horizontal) height = Math.max(160, labels.length * 36 + 48);
+      host.style.height = `${height}px`;
+      const pre = block.closest("pre");
+      (pre || block).replaceWith(host);
+      drawChart(spec, host);
+    }
+  };
+  if (typeof Chart === "function") {
+    draw();
+    return;
+  }
+  let script = document.querySelector("script[data-chartjs]");
+  if (!script) {
+    script = document.createElement("script");
+    script.src = CHART_SRC;
+    script.dataset.chartjs = "1";
+    document.head.append(script);
+  }
+  script.addEventListener("load", draw, { once: true });
+}
+
 function paintBars(root) {
   root.querySelectorAll("td").forEach((cell) => {
     const text = cell.textContent || "";
@@ -120,6 +280,7 @@ async function renderReply(markdown, at, options) {
   node.innerHTML = marked.parse(markdown);
   paintBars(node);
   const article = addMessage("assistant", node, at, options);
+  paintCharts(node);
   const diagrams = article.querySelectorAll(".mermaid");
   if (diagrams.length) {
     await mermaid.run({ nodes: diagrams, suppressErrors: true });

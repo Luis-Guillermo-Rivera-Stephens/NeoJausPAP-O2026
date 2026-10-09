@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import math
+import json
 import re
 from contextvars import ContextVar
 
@@ -119,12 +119,49 @@ def _label(key: str) -> str:
     return f"{match.group(3)}-{match.group(2)}"
 
 
-def _bar(n: int, top: int) -> str:
-    blocks = 0 if top <= 0 or n <= 0 else round(n / top * 16)
-    if n > 0 and blocks == 0:
-        blocks = 1
-    blocks = min(16, blocks)
-    return "█" * blocks + " " * (16 - blocks)
+_GRAPHIC = {
+    "bar": None,
+    "pie": {"categorias"},
+    "line": {"tendencia", "reporte"},
+    "area": {"tendencia", "reporte"},
+    "stacked": {"comparativa"},
+    "scatter": {"comparativa"},
+}
+
+
+def graphic_problem(kind: str, graphic: str, query: str | None = None) -> str | None:
+    """None si ese dibujo cabe en el kind."""
+    if graphic not in _GRAPHIC:
+        return "graphic no válido. Usa bar, pie, line, area, stacked o scatter."
+    allowed = _GRAPHIC[graphic]
+    if allowed is not None and kind not in allowed:
+        return f"{graphic} solo acepta {', '.join(sorted(allowed))}"
+    if query and kind == "reporte" and graphic in ("line", "area"):
+        try:
+            roots = _roots(_operation(parse(normalize(query))))
+        except (GraphQLError, ValueError):
+            return None
+        if any(name != "countOverTime" for _, name in roots):
+            return f"{graphic} en un reporte pide solo countOverTime hermanos"
+    return None
+
+
+def _chart(title: str, labels: list[str], series: list[dict], horizontal: bool, graphic: str) -> list[str]:
+    spec = {
+        "title": title,
+        "type": graphic,
+        "horizontal": horizontal and graphic == "bar",
+        "labels": labels,
+        "series": series,
+    }
+    raw = json.dumps(spec, ensure_ascii=False).replace("<", "\\u003c")
+    return ["", "```chart", raw, "```"]
+
+
+def _scatter(title: str, points: list[dict]) -> list[str]:
+    spec = {"title": title, "type": "scatter", "points": points}
+    raw = json.dumps(spec, ensure_ascii=False).replace("<", "\\u003c")
+    return ["", "```chart", raw, "```"]
 
 
 def _percents(values: list[int]) -> list[float]:
@@ -149,7 +186,8 @@ def _corte(query: str) -> str:
     found = re.findall(r'(since|until)\s*:\s*"([^"]+)"', query)
     if not found:
         return "Todo el histórico"
-    return ", ".join(f"{name} {value[:10]}" for name, value in found)
+    unique = list(dict.fromkeys(found))
+    return ", ".join(f"{name} {value[:10]}" for name, value in unique)
 
 
 def _header(title: str, corte: str) -> list[str]:
@@ -192,37 +230,32 @@ def _count(value: int) -> list[str]:
     ]
 
 
-def _bars(heading: str, rows: list[dict], dated: bool, chart: bool) -> list[str]:
+def _bars(heading: str, rows: list[dict], dated: bool, chart: bool, graphic: str = "bar") -> list[str]:
     if not dated:
         rows = _top(rows)
     if not rows or sum(row.get("n") or 0 for row in rows) == 0:
         return [f"## {heading}", "", "Sin datos para ese corte."]
     show = _label if dated else str
-    top = max(row.get("n") or 0 for row in rows)
     pcts = _percents([row.get("n") or 0 for row in rows])
     col = "Periodo" if dated else "Categoría"
-    lines = [f"## {heading}", "", f"| {col} | n | % | |", "| --- | ---: | ---: | --- |"]
+    lines: list[str] = []
+    if chart:
+        lines += _chart(
+            heading,
+            [show(_key(row)) for row in rows],
+            [{"name": "n", "data": [row.get("n") or 0 for row in rows]}],
+            horizontal=not dated,
+            graphic=graphic,
+        )
+    lines += [f"## {heading}", "", f"| {col} | n | % |", "| --- | ---: | ---: |"]
     for row, pct in zip(rows, pcts):
         n = row.get("n") or 0
-        lines.append(f"| {show(_key(row))} | {n} | {pct:.1f} | {_bar(n, top)} |")
-    if chart and dated:
-        labels = ", ".join(f'"{show(_key(row))}"' for row in rows)
-        bars = ", ".join(str(row.get("n") or 0) for row in rows)
-        lines += [
-            "",
-            "```mermaid",
-            "xychart-beta",
-            f'    title "{heading}"',
-            f"    x-axis [{labels}]",
-            f'    y-axis "n" 0 --> {math.ceil(top)}',
-            f"    bar [{bars}]",
-            "```",
-        ]
+        lines.append(f"| {show(_key(row))} | {n} | {pct:.1f} |")
     lines += ["", "## Lectura", f"- {_lectura_num(rows, dated)}"]
     return lines
 
 
-def _compare(heading: str, rows: list[dict]) -> list[str]:
+def _compare(heading: str, rows: list[dict], chart: bool, graphic: str = "bar") -> list[str]:
     if not rows or sum(row.get("n", 0) for row in rows) == 0:
         return [f"## {heading}", "", "Sin datos para ese corte."]
     if len(rows) == 1 and rows[0].get("key") == "total":
@@ -238,17 +271,36 @@ def _compare(heading: str, rows: list[dict]) -> list[str]:
             f"| Usuarios | {row['usuarios']} |",
         ]
     else:
-        top = max(max(row["inbound"], row["outbound"]) for row in rows)
-        lines = [
+        dated = bool(_DATE.match(str(rows[0].get("key", ""))))
+        lines = []
+        if chart and graphic == "scatter":
+            lines += _scatter(
+                heading,
+                [
+                    {"label": _label(_key(row)), "x": row["inbound"], "y": row["outbound"]}
+                    for row in rows
+                ],
+            )
+        elif chart:
+            lines += _chart(
+                heading,
+                [_label(_key(row)) for row in rows],
+                [
+                    {"name": "Entrantes", "data": [row["inbound"] for row in rows]},
+                    {"name": "Salientes", "data": [row["outbound"] for row in rows]},
+                ],
+                horizontal=not dated,
+                graphic=graphic,
+            )
+        lines += [
             f"## {heading}",
             "",
-            "| | Entrantes | | Salientes | | Total | Usuarios |",
-            "| --- | ---: | --- | ---: | --- | ---: | ---: |",
+            "| | Entrantes | Salientes | Total | Usuarios |",
+            "| --- | ---: | ---: | ---: | ---: |",
         ]
         for row in rows:
             lines.append(
-                f"| {_label(_key(row))} | {row['inbound']} | {_bar(row['inbound'], top)} | "
-                f"{row['outbound']} | {_bar(row['outbound'], top)} | {row['n']} | {row['usuarios']} |"
+                f"| {_label(_key(row))} | {row['inbound']} | {row['outbound']} | {row['n']} | {row['usuarios']} |"
             )
     inbound = sum(row["inbound"] for row in rows)
     outbound = sum(row["outbound"] for row in rows)
@@ -267,14 +319,14 @@ def _nested(bucket: dict) -> list[str]:
             lines += _kpis(value)
         elif isinstance(value, list):
             if value and "inbound" in value[0]:
-                lines += _compare(key, value)
+                lines += _compare(key, value, chart=False)
             else:
                 dated = bool(value) and bool(_DATE.match(str(value[0].get("key", ""))))
                 lines += _bars(key, value, dated, chart=False)
     return lines
 
 
-def _block(alias: str, name: str, value, nested_charts: bool) -> list[str]:
+def _block(alias: str, name: str, value, chart: bool, graphic: str = "bar") -> list[str]:
     heading = alias if alias != name else {
         "count": "Total",
         "kpis": "Indicadores",
@@ -289,9 +341,9 @@ def _block(alias: str, name: str, value, nested_charts: bool) -> list[str]:
     if not isinstance(value, list):
         return [f"## {heading}", "", "Sin datos para ese corte."]
     if name == "countCompare":
-        lines = _compare(heading, value)
+        lines = _compare(heading, value, chart, graphic)
     else:
-        lines = _bars(heading, value, name == "countOverTime", chart=nested_charts)
+        lines = _bars(heading, value, name == "countOverTime", chart, graphic)
     if name == "countBy":
         for bucket in value:
             if any(key not in _SKIP for key in bucket):
@@ -326,11 +378,44 @@ def digest(markdown: str) -> str:
     return " ".join(lines)
 
 
-def render_result(kind: str, title: str, query: str, data: dict) -> str:
+def _combined(roots: list[tuple[str, str]], data: dict, graphic: str, dated: bool) -> list[str]:
+    """Una sola gráfica: cada campo hermano es una serie. Debajo, la tabla de cada una."""
+    order: list[str] = []
+    seen: set[str] = set()
+    groups: list[tuple[str, list]] = []
+    for alias, name in roots:
+        rows = data.get(alias) or []
+        groups.append((alias, rows))
+        for row in rows:
+            key = _key(row)
+            if key not in seen:
+                seen.add(key)
+                order.append(key)
+    show = _label if dated else str
+    series = []
+    for alias, rows in groups:
+        values = {_key(row): row.get("n") or 0 for row in rows}
+        series.append({"name": alias, "data": [values.get(key, 0) for key in order]})
+    lines = _chart("Serie", [show(key) for key in order], series, horizontal=False, graphic=graphic)
+    for alias, name in roots:
+        lines += _block(alias, name, data.get(alias), False, graphic)
+        lines.append("")
+    return lines
+
+
+def render_result(kind: str, title: str, query: str, data: dict, graphic: str = "bar") -> str:
     document = parse(query)
     roots = _roots(_operation(document))
     lines = _header(title, _corte(query))
-    for alias, name in roots:
-        lines += _block(alias, name, data.get(alias), nested_charts=(kind != "reporte" and len(roots) == 1))
-        lines.append("")
+    names = {name for _, name in roots}
+    one = len(roots) > 1 and len(names) == 1
+    field = next(iter(names)) if one else None
+    if field == "countOverTime" and graphic in ("line", "area", "bar"):
+        lines += _combined(roots, data, graphic, dated=True)
+    elif field == "countBy" and graphic == "bar":
+        lines += _combined(roots, data, graphic, dated=False)
+    else:
+        for alias, name in roots:
+            lines += _block(alias, name, data.get(alias), True, graphic)
+            lines.append("")
     return "\n".join(lines).strip() + "\n"

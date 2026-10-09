@@ -28,6 +28,7 @@ _ENTITIES = {
         "filters": {
             "agency_id": "c.agency_id",
             "client_status": "c.client_status::text",
+            "advisor_id": "adv.uid",
             "client_id": "c.uid",
         },
     },
@@ -44,6 +45,7 @@ _ENTITIES = {
             "client_status": "c.client_status::text",
             "connection_id": "wc.connection_id",
             "client_id": "wc.client_id",
+            "advisor_id": "adv.uid",
         },
     },
     "MESSAGES": {
@@ -62,6 +64,7 @@ _ENTITIES = {
             "direction": "m.direction",
             "connection_id": "wc.connection_id",
             "client_id": "wc.client_id",
+            "advisor_id": "adv.uid",
         },
     },
     "CONNECTIONS": {

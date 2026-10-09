@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 from typing import Optional
+from uuid import UUID
 
 import strawberry
 from graphql import GraphQLError
@@ -82,15 +83,27 @@ class Kpis:
     usuarios: Optional[int]
 
 
-def _filters(since, until, agency_id, client_status, direction, connection_id, client_id) -> dict:
+def _uid(value, label: str):
+    if value is None:
+        return None
+    text = str(value)
+    try:
+        UUID(text)
+    except ValueError:
+        raise ValueError(f"{label} tiene que ser un uid. '{text}' no lo es; búscalo antes.") from None
+    return text
+
+
+def _filters(since, until, agency_id, client_status, direction, connection_id, client_id, advisor_id=None) -> dict:
     return {
         "since": since,
         "until": until,
-        "agency_id": str(agency_id) if agency_id is not None else None,
+        "agency_id": _uid(agency_id, "agencyId"),
         "client_status": client_status,
-        "direction": direction,
-        "connection_id": str(connection_id) if connection_id is not None else None,
-        "client_id": str(client_id) if client_id is not None else None,
+        "direction": direction.lower() if isinstance(direction, str) else direction,
+        "connection_id": _uid(connection_id, "connectionId"),
+        "client_id": _uid(client_id, "clientId"),
+        "advisor_id": _uid(advisor_id, "advisorId"),
     }
 
 
@@ -120,10 +133,11 @@ def count(
     direction: Optional[str] = None,
     connection_id: Optional[strawberry.ID] = None,
     client_id: Optional[strawberry.ID] = None,
+    advisor_id: Optional[strawberry.ID] = None,
 ) -> int:
     scope, name = _scope(root, entity)
     try:
-        return scope.count(name, metric.name, **_filters(since, until, agency_id, client_status, direction, connection_id, client_id))
+        return scope.count(name, metric.name, **_filters(since, until, agency_id, client_status, direction, connection_id, client_id, advisor_id))
     except ValueError as error:
         raise GraphQLError(str(error)) from error
 
@@ -140,10 +154,11 @@ def count_by(
     direction: Optional[str] = None,
     connection_id: Optional[strawberry.ID] = None,
     client_id: Optional[strawberry.ID] = None,
+    advisor_id: Optional[strawberry.ID] = None,
 ) -> list["Bucket"]:
     scope, name = _scope(root, entity)
     try:
-        rows = scope.count_by(by.name, name, metric.name, **_filters(since, until, agency_id, client_status, direction, connection_id, client_id))
+        rows = scope.count_by(by.name, name, metric.name, **_filters(since, until, agency_id, client_status, direction, connection_id, client_id, advisor_id))
     except ValueError as error:
         raise GraphQLError(str(error)) from error
     return [_bucket(Bucket, row) for row in rows]
@@ -161,10 +176,11 @@ def count_over_time(
     direction: Optional[str] = None,
     connection_id: Optional[strawberry.ID] = None,
     client_id: Optional[strawberry.ID] = None,
+    advisor_id: Optional[strawberry.ID] = None,
 ) -> list["Bucket"]:
     scope, name = _scope(root, entity)
     try:
-        rows = scope.count_over_time(by.name, name, metric.name, **_filters(since, until, agency_id, client_status, direction, connection_id, client_id))
+        rows = scope.count_over_time(by.name, name, metric.name, **_filters(since, until, agency_id, client_status, direction, connection_id, client_id, advisor_id))
     except ValueError as error:
         raise GraphQLError(str(error)) from error
     return [_bucket(Bucket, row) for row in rows]
@@ -179,10 +195,11 @@ def count_compare(
     client_status: Optional[str] = None,
     connection_id: Optional[strawberry.ID] = None,
     client_id: Optional[strawberry.ID] = None,
+    advisor_id: Optional[strawberry.ID] = None,
 ) -> list["CompareBucket"]:
     scope, _ = _scope(root, None, "MESSAGES")
     try:
-        rows = scope.count_compare(by.name, **_filters(since, until, agency_id, client_status, None, connection_id, client_id))
+        rows = scope.count_compare(by.name, **_filters(since, until, agency_id, client_status, None, connection_id, client_id, advisor_id))
     except ValueError as error:
         raise GraphQLError(str(error)) from error
     return [_bucket(CompareBucket, row) for row in rows]
@@ -196,10 +213,11 @@ def kpis(
     client_status: Optional[str] = None,
     connection_id: Optional[strawberry.ID] = None,
     client_id: Optional[strawberry.ID] = None,
+    advisor_id: Optional[strawberry.ID] = None,
 ) -> Kpis:
     scope, _ = _scope(root, None, "CRM_CLIENTS")
     try:
-        data = scope.kpis(**_filters(since, until, agency_id, client_status, None, connection_id, client_id))
+        data = scope.kpis(**_filters(since, until, agency_id, client_status, None, connection_id, client_id, advisor_id))
     except ValueError as error:
         raise GraphQLError(str(error)) from error
     return Kpis(**data)

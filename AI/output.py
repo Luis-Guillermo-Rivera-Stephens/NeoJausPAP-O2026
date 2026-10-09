@@ -4,15 +4,17 @@ from pydantic import BaseModel, Field
 class AiResponse(BaseModel):
     response: str = Field(
         description=(
-            "Mensaje que ve el usuario, en Markdown (tablas y bloques ```mermaid``` se renderizan). "
+            "Mensaje que ve el usuario, en Markdown. No escribas la gráfica: el server pinta el dashboard. "
             "Solo la respuesta, sin la memoria ni metadatos."
         )
     )
     new_summary: str = Field(
         description=(
-            "Relato solo de la ventana actual (estas 24 h): preguntas, respuestas y hechos "
-            "(nombres, uids, estatus, cifras, temas). No copies la ventana cerrada; "
-            "incorpora lo que ya decía la ventana actual."
+            "Relato solo de la ventana actual (estas 24 h). Cada entidad de la API va como {uid/nombre} "
+            "(asesor nickname, contacto preferred_name o first_name, número name o phone). "
+            "Ejemplo: cliente más reciente de {uid/rgomez} es {uid/Ana Ortiz}, alta 2026-07-05. "
+            "Si la ventana ya trae el token, reutiliza el uid. No inventes uids. "
+            "No copies la ventana cerrada; incorpora la ventana actual."
         )
     )
     errors: list[str] = Field(

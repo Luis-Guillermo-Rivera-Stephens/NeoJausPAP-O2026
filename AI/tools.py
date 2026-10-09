@@ -3,7 +3,7 @@ from pathlib import Path
 from agents import function_tool
 import requests
 
-from AI.dashboard import CHAT_ID, check, digest, normalize, render_result
+from AI.dashboard import CHAT_ID, check, digest, graphic_problem, normalize, render_result
 from api.db.cache import append_dashboard, read_dashboard
 from api.schema.schema import schema
 
@@ -44,13 +44,18 @@ def call_graphql(query: str) -> str:
 
 
 @function_tool
-def render_dashboard(kind: str, query: str, title: str) -> str:
-    """Guarda un dashboard a partir de una query de conteo. kind tiene que ser el campo: kpi si la query es count o kpis; categorias si es countBy; tendencia si es countOverTime; comparativa si es countCompare; reporte si hay dos o más. Devuelve ok N y un resumen, o error."""
-    print(f"[TOOL] render_dashboard kind={kind}")
+def render_dashboard(kind: str, query: str, title: str, graphic: str = "bar") -> str:
+    """Guarda un dashboard a partir de una query de conteo. kind es el campo: kpi si la query es count o kpis; categorias si es countBy; tendencia si es countOverTime; comparativa si es countCompare; reporte si hay dos o más campos hermanos. graphic es el dibujo: bar (default); pie solo categorias; line o area en tendencia, o en reporte si todos los hermanos son countOverTime (una serie por alias, una sola gráfica); stacked o scatter solo comparativa. Si comparas dos asesores día a día, un solo render_dashboard kind=reporte graphic=line. Devuelve ok N y un resumen, o error."""
+    print(f"[TOOL] render_dashboard kind={kind} graphic={graphic}")
     chat_id = CHAT_ID.get()
     if not chat_id:
         return "error: sin chat"
+    graphic = (graphic or "bar").strip().lower()
     query = normalize(query)
+    mismatch = graphic_problem(kind, graphic, query)
+    if mismatch:
+        print(f"[TOOL] render_dashboard reject={mismatch}")
+        return f"error: {mismatch}"
     problem = check(query, kind)
     if problem:
         print(f"[TOOL] render_dashboard reject={problem}")
@@ -65,7 +70,7 @@ def render_dashboard(kind: str, query: str, title: str) -> str:
     if not result.data:
         return "error: sin datos"
     try:
-        markdown = render_result(kind, title, query, result.data)
+        markdown = render_result(kind, title, query, result.data, graphic)
         index = append_dashboard(chat_id, markdown)
     except Exception as error:
         print(f"[TOOL] render_dashboard error={error}")

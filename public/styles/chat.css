@@ -304,6 +304,11 @@ body {
   overflow-x: auto;
 }
 
+.md .chart {
+  width: 100%;
+  margin: 0.55rem 0 0.8rem;
+}
+
 .composer {
   display: flex;
   gap: 0.5rem;
