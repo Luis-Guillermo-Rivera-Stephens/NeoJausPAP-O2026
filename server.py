@@ -1,5 +1,6 @@
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 
@@ -16,7 +17,8 @@ from strawberry.fastapi import GraphQLRouter
 from agents import Runner
 
 from AI.agent import agent
-from AI.tools import load_skill
+from AI.dashboard import CHAT_ID, splice
+from api.db.cache import take_dashboards
 from api.managers import memory as memory_mgr
 from api.schema.schema import schema
 
@@ -25,11 +27,18 @@ PUBLIC_DIR = Path(__file__).resolve().parent / "public"
 SKILL_WORDS = {
     "dashboard-kpi": ("kpi", "indicador"),
     "dashboard-categorias": ("pastel", "barras", "por estatus", "por asesor", "por tipo", "por fuente", "distribuci", "desglose"),
-    "dashboard-tendencia": ("tendencia", "por día", "por dia", "por semana", "evoluci", "histórico", "historico"),
+    "dashboard-tendencia": ("tendencia", "por día", "por dia", "por semana", "evoluci", "histórico", "historico", "dia", "semana"),
     "dashboard-comparativa": ("entrantes y salientes", "entrantes vs", "entrantes contra", "salientes y entrantes", "inbound", "outbound", "comparativ", "recibidos y enviados"),
 }
-# Sin pista de tipo, o con varias: reporte completo con las cuatro skills.
-REPORT_WORDS = ("dashboard", "reporte", "de la data", "gráfica", "grafica", "gráfico", "grafico")
+# "reporte" pide varias series. "dashboard" a secas no: si no hay otra pista, es una sola gráfica.
+REPORT_WORDS = ("reporte", "de la data")
+GENERIC_WORDS = ("dashboard", "gráfica", "grafica", "gráfico", "grafico")
+SKILL_KIND = {
+    "dashboard-kpi": "kpi",
+    "dashboard-categorias": "categorias",
+    "dashboard-tendencia": "tendencia",
+    "dashboard-comparativa": "comparativa",
+}
 
 app = FastAPI(title="PAP GraphQL + Agent")
 app.include_router(GraphQLRouter(schema), prefix="/graphql")
@@ -62,23 +71,20 @@ def _dashboard_skills(message: str) -> list[str]:
     hits = [name for name, words in SKILL_WORDS.items() if any(w in text for w in words)]
     if len(hits) == 1:
         return hits
-    if hits or any(w in text for w in REPORT_WORDS):
+    if len(hits) > 1 or any(w in text for w in REPORT_WORDS):
         return list(SKILL_WORDS)
+    if any(w in text for w in GENERIC_WORDS):
+        return ["dashboard-kpi"]
     return []
 
 
-def _dashboard_prompt(skills: list[str]) -> str:
-    loaded = "\n\n".join(load_skill(name) for name in skills)
+def _dashboard_kind(message: str) -> str | None:
+    skills = _dashboard_skills(message)
     if len(skills) == 1:
-        return (
-            f"Skill {skills[0]} (ya cargada, no llames read_skill). "
-            f"response debe ser el dashboard en Markdown con este formato:\n{loaded}"
-        )
-    return (
-        "Reporte completo. Skills ya cargadas (no llames read_skill). Una sola query GraphQL "
-        "con campos hermanos (kpis, countBy, countOverTime, countCompare) y un bloque por serie, "
-        f"cada uno con el formato de su skill:\n{loaded}"
-    )
+        return SKILL_KIND[skills[0]]
+    if skills:
+        return "reporte"
+    return None
 
 
 @app.get("/chats")
@@ -99,6 +105,12 @@ async def chat(body: ChatRequest) -> ChatResponse:
     memory_mgr.append_message(chat_id, "user", body.message)
     closed, current = memory_mgr.context_for_prompt(chat_id)
     parts = []
+    hoy = datetime.now(ZoneInfo("America/Mexico_City"))
+    parts.append(
+        f"Hoy es {hoy:%Y-%m-%d} (America/Mexico_City). "
+        "Para un día usa since de ese día y until del día siguiente. "
+        "Para un mes, since el día 1 y until el día 1 del mes siguiente."
+    )
     if is_new:
         parts.append(
             "Este chat es nuevo. Llena title con 3 a 6 palabras en español, sin comillas ni punto."
@@ -107,13 +119,28 @@ async def chat(body: ChatRequest) -> ChatResponse:
         parts.append(f"Ventana anterior (cerrada):\n{closed}")
     if current:
         parts.append(f"Ventana actual:\n{current}")
-    skills = _dashboard_skills(body.message)
-    if skills:
-        parts.append(_dashboard_prompt(skills))
+    kind = _dashboard_kind(body.message)
+    if kind:
+        parts.append(
+            "Es un dashboard. No uses call_graphql. "
+            "kind según el campo: count o kpis → kpi; countBy → categorias; "
+            "countOverTime → tendencia; countCompare → comparativa. "
+            "En response, texto y {{dashboard:N}} por cada ok N."
+        )
     parts.append(f"Pregunta actual:\n{body.message}")
-    result = await Runner.run(agent, "\n\n".join(parts))
+    token = CHAT_ID.set(chat_id)
+    try:
+        result = await Runner.run(agent, "\n\n".join(parts))
+    finally:
+        CHAT_ID.reset(token)
     out = result.final_output
-    reply = out.response if hasattr(out, "response") else str(out)
+    try:
+        stored = take_dashboards(chat_id)
+    except Exception as error:
+        print(f"[AGENT] dashboard redis error={error}")
+        stored = []
+    text = out.response if hasattr(out, "response") else str(out)
+    reply = splice(text, stored)
     summary = getattr(out, "new_summary", "") or ""
     memory_mgr.save_current(chat_id, summary)
     if summary.strip():

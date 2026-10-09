@@ -63,6 +63,31 @@ def put(chat_id: str, kind: str, summary: str, window_to: datetime, now: datetim
     client().set(_key(chat_id, kind), _dump(summary, window_to), ex=ttl_seconds(now))
 
 
+DASH_TTL = 600
+
+
+def append_dashboard(chat_id: str, markdown: str) -> int:
+    """Agrega un dashboard y devuelve su número (1, 2, …)."""
+    key = f"dash:{chat_id}"
+    index = int(client().rpush(key, markdown))
+    client().expire(key, DASH_TTL)
+    return index
+
+
+def read_dashboard(chat_id: str, index: int) -> str | None:
+    """index es 1, 2, … No borra la lista."""
+    if index < 1:
+        return None
+    return client().lindex(f"dash:{chat_id}", index - 1)
+
+
+def take_dashboards(chat_id: str) -> list[str]:
+    key = f"dash:{chat_id}"
+    rows = client().lrange(key, 0, -1)
+    client().delete(key)
+    return list(rows or [])
+
+
 def put_current(chat_id: str, summary: str, window_to: datetime, now: datetime) -> None:
     try:
         put(chat_id, "current", summary, window_to, now)

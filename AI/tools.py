@@ -3,6 +3,10 @@ from pathlib import Path
 from agents import function_tool
 import requests
 
+from AI.dashboard import CHAT_ID, check, digest, normalize, render_result
+from api.db.cache import append_dashboard, read_dashboard
+from api.schema.schema import schema
+
 SKILLS_DIR = Path(__file__).resolve().parent / "skills"
 
 
@@ -37,6 +41,65 @@ def call_graphql(query: str) -> str:
     except Exception as e:
         print(f"[TOOL] call_graphql error={e}")
         return str(e)
+
+
+@function_tool
+def render_dashboard(kind: str, query: str, title: str) -> str:
+    """Guarda un dashboard a partir de una query de conteo. kind tiene que ser el campo: kpi si la query es count o kpis; categorias si es countBy; tendencia si es countOverTime; comparativa si es countCompare; reporte si hay dos o más. Devuelve ok N y un resumen, o error."""
+    print(f"[TOOL] render_dashboard kind={kind}")
+    chat_id = CHAT_ID.get()
+    if not chat_id:
+        return "error: sin chat"
+    query = normalize(query)
+    problem = check(query, kind)
+    if problem:
+        print(f"[TOOL] render_dashboard reject={problem}")
+        return f"error: {problem}"
+    try:
+        result = schema.execute_sync(query)
+    except Exception as error:
+        print(f"[TOOL] render_dashboard error={error}")
+        return f"error: {error}"
+    if result.errors:
+        return "error: " + "; ".join(error.message for error in result.errors)
+    if not result.data:
+        return "error: sin datos"
+    try:
+        markdown = render_result(kind, title, query, result.data)
+        index = append_dashboard(chat_id, markdown)
+    except Exception as error:
+        print(f"[TOOL] render_dashboard error={error}")
+        return f"error: {error}"
+    return f"ok {index}\n" + digest(markdown)
+
+
+def _sin_grafica(markdown: str) -> str:
+    lines = []
+    skip = False
+    for line in markdown.splitlines():
+        if line.startswith("```"):
+            skip = not skip
+            continue
+        if not skip:
+            lines.append(line)
+    return "\n".join(lines)
+
+
+@function_tool
+def ver_dashboard(n: int) -> str:
+    """Lee el dashboard N ya guardado (tablas, sin la gráfica). Úsalo solo si el resumen no alcanza para un insight concreto."""
+    print(f"[TOOL] ver_dashboard n={n}")
+    chat_id = CHAT_ID.get()
+    if not chat_id:
+        return "error: sin chat"
+    try:
+        markdown = read_dashboard(chat_id, n)
+    except Exception as error:
+        print(f"[TOOL] ver_dashboard error={error}")
+        return f"error: {error}"
+    if not markdown:
+        return f"error: no hay dashboard {n}"
+    return _sin_grafica(markdown)
 
 
 @function_tool

@@ -98,10 +98,27 @@ function typingNode() {
   return note;
 }
 
+function paintBars(root) {
+  root.querySelectorAll("td").forEach((cell) => {
+    const text = cell.textContent || "";
+    if (!text.includes("█") || !/^[█ ]+$/.test(text)) return;
+    const filled = [...text].filter((ch) => ch === "█").length;
+    cell.textContent = "";
+    cell.classList.add("bar-cell");
+    const track = document.createElement("span");
+    track.className = "bar";
+    const fill = document.createElement("span");
+    fill.style.width = `${(filled / 16) * 100}%`;
+    track.append(fill);
+    cell.append(track);
+  });
+}
+
 async function renderReply(markdown, at, options) {
   const node = document.createElement("div");
   node.className = "md";
   node.innerHTML = marked.parse(markdown);
+  paintBars(node);
   const article = addMessage("assistant", node, at, options);
   const diagrams = article.querySelectorAll(".mermaid");
   if (diagrams.length) {

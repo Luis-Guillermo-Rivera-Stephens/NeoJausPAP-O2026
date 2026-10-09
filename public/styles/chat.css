@@ -277,6 +277,28 @@ body {
   text-align: right;
 }
 
+.md td.bar-cell {
+  font-family: inherit;
+  white-space: normal;
+  width: 8rem;
+  vertical-align: middle;
+}
+
+.md .bar {
+  display: block;
+  height: 0.55rem;
+  background: var(--line);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.md .bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+}
+
 .md .mermaid {
   margin: 0.5rem 0 0.8rem;
   overflow-x: auto;
