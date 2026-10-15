@@ -6,3 +6,4 @@ httpx
 strawberry-graphql[fastapi]
 psycopg[binary,pool]
 redis
+typesafe-sdk

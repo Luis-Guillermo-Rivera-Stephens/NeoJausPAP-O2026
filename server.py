@@ -16,28 +16,19 @@ from pydantic import BaseModel
 from strawberry.fastapi import GraphQLRouter
 from agents import Runner
 
-from AI.agent import agent
+from AI.agent import TURN, agent
 from AI.dashboard import CHAT_ID, splice
+from AI.jev import classify
 from api.db.cache import take_dashboards
 from api.managers import memory as memory_mgr
 from api.schema.schema import schema
 
 PUBLIC_DIR = Path(__file__).resolve().parent / "public"
-# Pista clara de un tipo de gráfica → se precarga solo esa skill.
-SKILL_WORDS = {
-    "dashboard-kpi": ("kpi", "indicador"),
-    "dashboard-categorias": ("pastel", "barras", "por estatus", "por asesor", "por tipo", "por fuente", "distribuci", "desglose"),
-    "dashboard-tendencia": ("tendencia", "por día", "por dia", "por semana", "evoluci", "histórico", "historico", "dia", "semana"),
-    "dashboard-comparativa": ("entrantes y salientes", "entrantes vs", "entrantes contra", "salientes y entrantes", "inbound", "outbound", "comparativ", "recibidos y enviados"),
-}
-# "reporte" pide varias series. "dashboard" a secas no: si no hay otra pista, es una sola gráfica.
-REPORT_WORDS = ("reporte", "de la data")
-GENERIC_WORDS = ("dashboard", "gráfica", "grafica", "gráfico", "grafico")
-SKILL_KIND = {
-    "dashboard-kpi": "kpi",
-    "dashboard-categorias": "categorias",
-    "dashboard-tendencia": "tendencia",
-    "dashboard-comparativa": "comparativa",
+_ROUTE_LINE = {
+    "datos": "Ruta: datos. Resuelve con call_graphql. No uses render_dashboard, buscarEstado ni memories.",
+    "dashboard": "Ruta: dashboard. El conteo va en render_dashboard.",
+    "estatus": "Ruta: estatus. Llama buscarEstado(q). No pidas messages si source es episode.",
+    "memoria": "Ruta: memoria. Si falta un hecho de antes, llama memories(q, limit).",
 }
 
 app = FastAPI(title="PAP GraphQL + Agent")
@@ -75,25 +66,25 @@ def _require_chat(chat_id: str) -> None:
         raise HTTPException(status_code=404, detail="Chat no encontrado")
 
 
-def _dashboard_skills(message: str) -> list[str]:
-    text = message.lower()
-    hits = [name for name, words in SKILL_WORDS.items() if any(w in text for w in words)]
-    if len(hits) == 1:
-        return hits
-    if len(hits) > 1 or any(w in text for w in REPORT_WORDS):
-        return list(SKILL_WORDS)
-    if any(w in text for w in GENERIC_WORDS):
-        return ["dashboard-kpi"]
-    return []
-
-
-def _dashboard_kind(message: str) -> str | None:
-    skills = _dashboard_skills(message)
-    if len(skills) == 1:
-        return SKILL_KIND[skills[0]]
-    if skills:
-        return "reporte"
-    return None
+def _decision_prompt(decisions: dict) -> str:
+    lines = ["Decisiones ya resueltas. Úsalas tal cual."]
+    route = decisions.get("ruta")
+    if route in _ROUTE_LINE:
+        lines.append(_ROUTE_LINE[route])
+    if decisions.get("since"):
+        lines.append(f"since: {decisions['since']}")
+        lines.append(f"until: {decisions['until']} (exclusivo). No calcules otras fechas.")
+    if decisions.get("advisor_id"):
+        lines.append(
+            f"advisorId: {decisions['advisor_id']} ({decisions['advisor']}). No llames advisors."
+        )
+    if decisions.get("kind"):
+        lines.append(f"kind: {decisions['kind']}")
+        lines.append(f"graphic: {decisions['graphic']}")
+        lines.append("Una render_dashboard con ese kind y ese graphic.")
+    if len(lines) == 1:
+        return ""
+    return "\n".join(lines)
 
 
 @app.get("/chats")
@@ -115,11 +106,14 @@ async def chat(body: ChatRequest) -> ChatResponse:
     closed, current = memory_mgr.context_for_prompt(chat_id)
     parts = []
     hoy = datetime.now(ZoneInfo("America/Mexico_City"))
-    parts.append(
-        f"Hoy es {hoy:%Y-%m-%d} (America/Mexico_City). "
-        "Para un día usa since de ese día y until del día siguiente. "
-        "Para un mes, since el día 1 y until el día 1 del mes siguiente."
-    )
+    decisions = await classify(body.message, hoy)
+    hoy_line = f"Hoy es {hoy:%Y-%m-%d} (America/Mexico_City)."
+    if not (decisions and decisions.get("since")):
+        hoy_line += (
+            " Para un día usa since de ese día y until del día siguiente. "
+            "Para un mes, since el día 1 y until el día 1 del mes siguiente."
+        )
+    parts.append(hoy_line)
     if is_new:
         parts.append(
             "Este chat es nuevo. Llena title con 3 a 6 palabras en español, sin comillas ni punto."
@@ -128,26 +122,17 @@ async def chat(body: ChatRequest) -> ChatResponse:
         parts.append(f"Ventana anterior (cerrada):\n{closed}")
     if current:
         parts.append(f"Ventana actual:\n{current}")
-    kind = _dashboard_kind(body.message)
-    if kind:
-        parts.append(
-            "Es un dashboard. El conteo va en render_dashboard, no en call_graphql. "
-            "Si nombran a un asesor por nickname, primero call_graphql { advisors { uid nickname } } y filtra con advisorId (el uid). "
-            "clientId es el contacto, nunca el nickname. "
-            "Dos asesores día a día: un solo render_dashboard, kind reporte, graphic line, dos countOverTime con alias. Una sola gráfica. "
-            "kind según el campo: count o kpis → kpi; countBy → categorias; "
-            "countOverTime → tendencia; countCompare → comparativa. "
-            "countBy y countOverTime llevan { key n }. countCompare lleva { key inbound outbound n usuarios }. "
-            "direction es el string \"inbound\" o \"outbound\", nunca el enum INBOUND. "
-            "graphic: bar; pie solo categorias; line o area en tendencia o en un reporte de countOverTime; stacked o scatter solo comparativa. "
-            "Si solo piden otro dibujo, repite la misma query y cambia graphic. Heatmap no existe. "
-            "En response, texto y {{dashboard:N}} por cada ok N."
-        )
+    if decisions:
+        block = _decision_prompt(decisions)
+        if block:
+            parts.append(block)
     parts.append(f"Pregunta actual:\n{body.message}")
     token = CHAT_ID.set(chat_id)
+    turn = TURN.set(decisions)
     try:
         result = await Runner.run(agent, "\n\n".join(parts))
     finally:
+        TURN.reset(turn)
         CHAT_ID.reset(token)
     out = result.final_output
     try:
