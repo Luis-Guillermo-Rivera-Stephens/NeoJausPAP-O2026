@@ -10,11 +10,12 @@ class AiResponse(BaseModel):
     )
     new_summary: str = Field(
         description=(
-            "Relato solo de la ventana actual (estas 24 h). Cada entidad de la API va como {uid/nombre} "
-            "(asesor nickname, contacto preferred_name o first_name, número name o phone). "
-            "Ejemplo: cliente más reciente de {uid/rgomez} es {uid/Ana Ortiz}, alta 2026-07-05. "
-            "Si la ventana ya trae el token, reutiliza el uid. No inventes uids. "
-            "No copies la ventana cerrada; incorpora la ventana actual."
+            "Relato del hilo del chat en esta ventana, no una lista de datos: qué se preguntó y qué se respondió, en orden. "
+            "Conserva la ventana actual y añade lo nuevo; no la reduzcas al último hecho. "
+            "Cada asesor, contacto, número o conversación de la API va como {uid-real/nombre} dentro de la frase. "
+            "Incorrecto: 'el cliente de rgomez es Ana Ortiz'. "
+            "Correcto: 'preguntó el más reciente de {c0000000-0000-4000-8000-000000000001/rgomez}: {a1b2c3d4-0000-4000-8000-000000000010/Ana Ortiz}, alta 2026-07-05'. "
+            "No inventes un uid. Si el token ya está, reutilízalo. No copies la ventana cerrada."
         )
     )
     errors: list[str] = Field(
