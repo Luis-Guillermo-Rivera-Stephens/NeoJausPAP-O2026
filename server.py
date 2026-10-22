@@ -1,3 +1,5 @@
+import asyncio
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -18,6 +20,7 @@ from agents import Runner
 
 from AI.agent import TURN, agent
 from AI.dashboard import CHAT_ID, splice
+from AI.episode_chain import process_pending
 from AI.jev import advisor_in_text, classify
 from api.db.cache import take_dashboards
 from api.managers import memory as memory_mgr
@@ -31,7 +34,26 @@ _ROUTE_LINE = {
     "memoria": "Ruta: memoria. Si falta un hecho de antes, llama memories(q, limit).",
 }
 
-app = FastAPI(title="PAP GraphQL + Agent")
+
+async def _episode_loop() -> None:
+    while True:
+        try:
+            await process_pending()
+        except Exception as error:
+            print(f"[EPISODES] loop error: {error}")
+        await asyncio.sleep(300)
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    task = asyncio.create_task(_episode_loop())
+    try:
+        yield
+    finally:
+        task.cancel()
+
+
+app = FastAPI(title="PAP GraphQL + Agent", lifespan=_lifespan)
 app.include_router(GraphQLRouter(schema), prefix="/graphql")
 
 

@@ -1,5 +1,8 @@
+from datetime import datetime, timezone
 from typing import Optional
 
+from api.db.cache import end_of_day
+from api.db.db import get_connection
 from api.managers._sql import clamp_limit, fetch_all, like_pattern
 
 _EPISODE_SEARCH = """
@@ -112,3 +115,99 @@ def buscar_estado(
     message_sql += " ORDER BY m.cat DESC LIMIT %s"
     msg_params.append(safe_limit)
     return fetch_all(message_sql, tuple(msg_params))
+
+
+def list_pending() -> list[dict]:
+    return fetch_all(
+        """
+        SELECT m.conversation_id,
+               min(m.cat) AS window_from,
+               max(m.cat) AS last_cat,
+               max(e.open_summary) AS current_summary,
+               json_agg(
+                   json_build_object(
+                       'direction', m.direction,
+                       'cat', m.cat,
+                       'body', coalesce(m.content->>'body', m.content->>'caption', m.content->>'transcription', '')
+                   ) ORDER BY m.cat
+               ) AS messages
+        FROM whatsapp_message m
+        LEFT JOIN LATERAL (
+            SELECT max(window_to) AS window_to,
+                   max(summary) FILTER (WHERE window_to > now()) AS open_summary
+            FROM whatsapp_conversation_episode e
+            WHERE e.conversation_id = m.conversation_id
+        ) e ON true
+        WHERE m.cat > COALESCE(e.window_to, '-infinity'::timestamptz)
+          AND coalesce(m.content->>'body', m.content->>'caption', m.content->>'transcription', '') <> ''
+        GROUP BY m.conversation_id
+        """
+    )
+
+
+def upsert_current(
+    conversation_id: str,
+    summary: str,
+    topics: list[str],
+    window_from: datetime,
+    last_cat: datetime,
+    model: str,
+) -> str:
+    now = datetime.now(timezone.utc)
+    eod = end_of_day(now)
+    clean = list(dict.fromkeys(t.strip().lower()[:64] for t in topics if t and t.strip()))[:8]
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT uid, window_to FROM whatsapp_conversation_episode
+                WHERE conversation_id = %s AND window_to > now()
+                ORDER BY window_to DESC LIMIT 1
+                """,
+                (conversation_id,),
+            )
+            open_row = cur.fetchone()
+            if open_row:
+                episode_id = str(open_row[0])
+                window_to = max(open_row[1], last_cat, eod)
+                cur.execute(
+                    """
+                    UPDATE whatsapp_conversation_episode
+                    SET summary = %s, window_to = %s, model = %s
+                    WHERE uid = %s
+                    """,
+                    (summary, window_to, model, episode_id),
+                )
+            else:
+                window_to = max(last_cat, eod)
+                cur.execute(
+                    """
+                    INSERT INTO whatsapp_conversation_episode (
+                        conversation_id, window_from, window_to, summary, model, cost_usd_micros
+                    ) VALUES (%s, %s, %s, %s, %s, 0)
+                    RETURNING uid
+                    """,
+                    (conversation_id, window_from, window_to, summary, model),
+                )
+                episode_id = str(cur.fetchone()[0])
+
+            cur.execute(
+                "DELETE FROM whatsapp_episode_topic WHERE episode_id = %s",
+                (episode_id,),
+            )
+            if clean:
+                cur.executemany(
+                    "INSERT INTO whatsapp_key_topic (name) VALUES (%s) ON CONFLICT (name) DO NOTHING",
+                    [(name,) for name in clean],
+                )
+                cur.executemany(
+                    """
+                    INSERT INTO whatsapp_episode_topic (episode_id, topic_id)
+                    SELECT %s, uid FROM whatsapp_key_topic WHERE name = %s
+                    ON CONFLICT DO NOTHING
+                    """,
+                    [(episode_id, name) for name in clean],
+                )
+        conn.commit()
+    return episode_id
+
