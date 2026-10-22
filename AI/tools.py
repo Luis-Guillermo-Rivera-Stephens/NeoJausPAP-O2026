@@ -4,6 +4,7 @@ from agents import function_tool
 import requests
 
 from AI.dashboard import CHAT_ID, check, digest, graphic_problem, normalize, render_result
+from AI.jev import rewrite_advisor_ids
 from api.db.cache import append_dashboard, read_dashboard
 from api.schema.schema import schema
 
@@ -33,11 +34,16 @@ def _frontmatter(text: str) -> dict[str, str]:
 
 @function_tool
 def call_graphql(query: str) -> str:
+    query = rewrite_advisor_ids(query)
     print(f"[TOOL] call_graphql query={query}")
     try:
         url = "http://localhost:8000/graphql"
         response = requests.post(url, json={"query": query})
-        return response.json()
+        body = response.json()
+        errors = body.get("errors") if isinstance(body, dict) else None
+        if errors:
+            return "error: " + "; ".join(item.get("message", "") for item in errors)
+        return body
     except Exception as e:
         print(f"[TOOL] call_graphql error={e}")
         return str(e)

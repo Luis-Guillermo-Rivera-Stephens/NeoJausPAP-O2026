@@ -1,5 +1,6 @@
 """Una llamada a Jev antes del agente. Si no hay llave o falla, devuelve None."""
 
+import re
 from datetime import datetime, timedelta
 from os import getenv
 from zoneinfo import ZoneInfo
@@ -7,6 +8,8 @@ from zoneinfo import ZoneInfo
 MX = ZoneInfo("America/Mexico_City")
 THRESHOLD = 0.85
 MODEL = "jev-latest"
+# docs.typesafe.ai/models: se cobra la entrada. La salida no.
+INPUT_USD_PER_MILLION = 0.042
 
 ROUTES = ("datos", "dashboard", "estatus", "memoria")
 PERIODS = (
@@ -54,10 +57,61 @@ def period_bounds(now: datetime, period: str) -> tuple[str, str] | None:
     return since.isoformat(timespec="seconds"), until.isoformat(timespec="seconds")
 
 
+def _log_usage(response) -> None:
+    usage = response.usage
+    cost = usage.input_tokens * INPUT_USD_PER_MILLION / 1_000_000
+    print(
+        f"[JEV] tokens: input={usage.input_tokens} "
+        f"output={usage.output_tokens} cost_usd={cost:.8f} model={response.model}"
+    )
+
+
 def _pick(answer, allowed: tuple[str, ...] | set[str]) -> str | None:
     if answer is None or answer.confidence < THRESHOLD or answer.choice not in allowed:
         return None
     return answer.choice
+
+
+def match_advisor(text: str, rows: list[dict]) -> tuple[str, str] | None:
+    """Un solo nickname presente en el texto. Cero o varios: None."""
+    found: list[tuple[str, str]] = []
+    for row in rows:
+        nick = (row.get("nickname") or "").strip()
+        if not nick:
+            continue
+        if re.search(rf"(?<!\w){re.escape(nick)}(?!\w)", text, re.IGNORECASE):
+            found.append((nick, str(row["uid"])))
+    if len(found) != 1:
+        return None
+    return found[0]
+
+
+def advisor_in_text(text: str) -> tuple[str, str] | None:
+    from api.managers import advisors as advisors_mgr
+
+    return match_advisor(text, advisors_mgr.list_advisors())
+
+
+def _rewrite(query: str, rows: list[dict]) -> str:
+    rewritten = query
+    for row in rows:
+        nick = (row.get("nickname") or "").strip()
+        if not nick:
+            continue
+        rewritten = re.sub(
+            rf'(advisorId:\s*"){re.escape(nick)}(")',
+            rf"\1{row['uid']}\2",
+            rewritten,
+            flags=re.IGNORECASE,
+        )
+    return rewritten
+
+
+def rewrite_advisor_ids(query: str) -> str:
+    """Si el modelo puso un nickname en advisorId, lo cambia por el uid."""
+    from api.managers import advisors as advisors_mgr
+
+    return _rewrite(query, advisors_mgr.list_advisors())
 
 
 def _advisor_criteria() -> tuple[dict[str, str], dict[str, str]]:
@@ -127,6 +181,7 @@ async def classify(message: str, now: datetime | None = None) -> dict | None:
             retry=RetryPolicy(max_retries=0),
         ) as client:
             response = await client.system_one(state=text, questions=questions)
+        _log_usage(response)
         out: dict[str, str] = {}
         route = _pick(response.choices.get("ruta"), ROUTES)
         if route:
@@ -174,4 +229,14 @@ if __name__ == "__main__":
     assert _pick(_Answer("hoy", 0.9), PERIODS) == "hoy"
     assert _pick(_Answer("hoy", 0.84), PERIODS) is None
     assert _pick(_Answer("otro", 0.99), PERIODS) is None
+    rows = [
+        {"nickname": "jsalas", "uid": "c0000000-0000-4000-8000-000000000002"},
+        {"nickname": "rgomez", "uid": "c0000000-0000-4000-8000-000000000001"},
+    ]
+    assert match_advisor("desglosa el rendimiento de jsalas", rows)[0] == "jsalas"
+    assert match_advisor("hola", rows) is None
+    assert match_advisor("compara jsalas y rgomez", rows) is None
+    swapped = _rewrite('query { crmClients(advisorId: "jsalas") { uid } }', rows)
+    assert "c0000000-0000-4000-8000-000000000002" in swapped
+    assert "jsalas" not in swapped
     print("ok")

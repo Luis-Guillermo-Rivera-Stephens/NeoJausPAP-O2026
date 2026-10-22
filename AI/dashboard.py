@@ -72,12 +72,59 @@ def _all_fields(node) -> list[str]:
     return names
 
 
+_FILL = {
+    "kpis": "agencies advisors clients lost connections conversations openWindows unanswered messages inbound outbound conMensaje usuarios",
+    "countBy": "key n",
+    "countOverTime": "key n",
+    "countCompare": "key inbound outbound n usuarios",
+}
+
+
+def _fill_selections(text: str) -> str:
+    """kpis sin { ... } no es una query. Se completan los campos y no se rechaza."""
+    pieces: list[str] = []
+    i = 0
+    names = sorted(_FILL, key=len, reverse=True)
+    while i < len(text):
+        name = next(
+            (
+                item
+                for item in names
+                if text.startswith(item, i)
+                and (i == 0 or not text[i - 1].isalnum())
+                and (i + len(item) == len(text) or not text[i + len(item)].isalnum())
+            ),
+            None,
+        )
+        if not name:
+            pieces.append(text[i])
+            i += 1
+            continue
+        pieces.append(name)
+        i += len(name)
+        if i < len(text) and text[i] == "(":
+            depth = 0
+            while i < len(text):
+                pieces.append(text[i])
+                depth += text[i] == "("
+                depth -= text[i] == ")"
+                i += 1
+                if depth == 0:
+                    break
+        while i < len(text) and text[i].isspace():
+            pieces.append(text[i])
+            i += 1
+        if i >= len(text) or text[i] != "{":
+            pieces.append("{ " + _FILL[name] + " }")
+    return "".join(pieces)
+
+
 def normalize(query: str) -> str:
     """Acepta el campo suelto: countOverTime(...) { key n }."""
     text = query.strip()
-    if text.startswith(("query", "mutation", "{")):
-        return text
-    return "query { " + text + " }"
+    if not text.startswith(("query", "mutation", "{")):
+        text = "query { " + text + " }"
+    return _fill_selections(text)
 
 
 def check(query: str, kind: str) -> str | None:

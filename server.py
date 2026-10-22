@@ -18,7 +18,7 @@ from agents import Runner
 
 from AI.agent import TURN, agent
 from AI.dashboard import CHAT_ID, splice
-from AI.jev import classify
+from AI.jev import advisor_in_text, classify
 from api.db.cache import take_dashboards
 from api.managers import memory as memory_mgr
 from api.schema.schema import schema
@@ -107,6 +107,11 @@ async def chat(body: ChatRequest) -> ChatResponse:
     parts = []
     hoy = datetime.now(ZoneInfo("America/Mexico_City"))
     decisions = await classify(body.message, hoy)
+    named = advisor_in_text(body.message)
+    if named:
+        decisions = dict(decisions or {})
+        decisions["advisor"], decisions["advisor_id"] = named
+        print(f"[JEV] asesor en el texto: {named[0]} uid={named[1]}")
     hoy_line = f"Hoy es {hoy:%Y-%m-%d} (America/Mexico_City)."
     if not (decisions and decisions.get("since")):
         hoy_line += (

@@ -95,7 +95,7 @@ _DIMS = {
     "STATUS": ("w", "w.status", None, None),
     "IS_ACTIVE": ("w", "CASE WHEN w.is_active THEN 'activos' ELSE 'inactivos' END", None, None),
 }
-TIME_DIMS = ("DAY", "WEEK")
+TIME_DIMS = ("DAY", "WEEK", "MONTH")
 
 # unanswered: el último mensaje de la conversación lo escribió el contacto.
 _LAST_MESSAGE = """LEFT JOIN LATERAL (
@@ -119,11 +119,18 @@ def _week(column: str) -> str:
     return f"to_char(date_trunc('week', {column} AT TIME ZONE '{TZ}'), 'YYYY-MM-DD')"
 
 
+def _month(column: str) -> str:
+    return f"to_char(date_trunc('month', {column} AT TIME ZONE '{TZ}'), 'YYYY-MM')"
+
+
+_TIME = {"DAY": _day, "WEEK": _week, "MONTH": _month}
+
+
 def _dim(entity: str, name: str) -> dict:
     spec = _spec(entity)
     if name in TIME_DIMS:
         column = spec["time"]
-        expr = _day(column) if name == "DAY" else _week(column)
+        expr = _TIME[name](column)
         return {"name": name, "alias": column.split(".")[0], "key": expr, "id": expr, "where": None}
     if name not in _DIMS:
         raise ValueError(f"dimensión no permitida: {name}")
@@ -278,12 +285,12 @@ class Scope:
 
     def count_by(self, by: str, entity: Optional[str] = None, metric: str = "COUNT", **filters) -> list[dict]:
         if by in TIME_DIMS:
-            raise ValueError("DAY y WEEK van en countOverTime")
+            raise ValueError("DAY, WEEK y MONTH van en countOverTime")
         return self._series(by, entity, metric, filters, time_order=False)
 
     def count_over_time(self, by: str, entity: Optional[str] = None, metric: str = "COUNT", **filters) -> list[dict]:
         if by not in TIME_DIMS:
-            raise ValueError("countOverTime solo acepta DAY o WEEK")
+            raise ValueError("countOverTime solo acepta DAY, WEEK o MONTH")
         return self._series(by, entity, metric, filters, time_order=True)
 
     def _series(self, by, entity, metric, filters, time_order) -> list[dict]:
@@ -306,7 +313,7 @@ class Scope:
             row = rows[0] if rows else {"inbound": 0, "outbound": 0, "n": 0, "usuarios": 0}
             return [{**row, "key": "total", "scope": Scope(entity, self.dims, merged, self.path, child_cache)}]
         if by not in (*TIME_DIMS, "CONNECTION"):
-            raise ValueError("countCompare acepta NONE, DAY, WEEK o CONNECTION")
+            raise ValueError("countCompare acepta NONE, DAY, WEEK, MONTH o CONNECTION")
         dim = _dim(entity, by)
         rows, merged, child_cache = self._rows(entity, [dim], filters, measures, time_order=by in TIME_DIMS)
         return [self._bucket(entity, dim, row, merged, child_cache) for row in rows]

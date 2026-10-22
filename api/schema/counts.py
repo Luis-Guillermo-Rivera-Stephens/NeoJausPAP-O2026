@@ -56,6 +56,7 @@ class CountDim(Enum):
 class TimeDim(Enum):
     DAY = "DAY"
     WEEK = "WEEK"
+    MONTH = "MONTH"
 
 
 @strawberry.enum
@@ -63,6 +64,7 @@ class CompareDim(Enum):
     NONE = "NONE"
     DAY = "DAY"
     WEEK = "WEEK"
+    MONTH = "MONTH"
     CONNECTION = "CONNECTION"
 
 
@@ -226,9 +228,9 @@ def kpis(
 _FIELDS = {
     "count": (count, "Un número. Todas las filas del filtro."),
     "kpis": (kpis, "Tabla de indicadores en una sola llamada."),
-    "count_by": (count_by, "Todas las cubetas de una dimensión, de mayor a menor. Sin DAY/WEEK."),
-    "count_over_time": (count_over_time, "Serie completa por DAY o WEEK, en orden cronológico."),
-    "count_compare": (count_compare, "Solo mensajes: inbound, outbound, total y usuarios por NONE, DAY, WEEK o CONNECTION."),
+    "count_by": (count_by, "Todas las cubetas de una dimensión, de mayor a menor. Sin DAY/WEEK/MONTH."),
+    "count_over_time": (count_over_time, "Serie completa por DAY, WEEK o MONTH, en orden cronológico."),
+    "count_compare": (count_compare, "Solo mensajes: inbound, outbound, total y usuarios por NONE, DAY, WEEK, MONTH o CONNECTION."),
 }
 
 

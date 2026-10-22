@@ -59,8 +59,8 @@ Reglas del dominio (el SDL no las dice):
   El kind es el campo de la query, no al revés:
   - kpi → `kpis { agencies advisors clients lost connections conversations openWindows unanswered messages inbound outbound conMensaje usuarios }` o `count(entity: MESSAGES, metric: COUNT)`.
   - categorias → `countBy(entity: MESSAGES, by: ADVISOR) { key n }`.
-  - tendencia → `countOverTime(entity: MESSAGES, by: DAY) { key n }` o `by: WEEK`. Un día, el mínimo o el máximo salen de esta serie; no pidas otra query para eso.
-  - comparativa → `countCompare(by: DAY) { key inbound outbound n usuarios }`. by también puede ser NONE, WEEK o CONNECTION.
+  - tendencia → `countOverTime(entity: MESSAGES, by: DAY) { key n }`, `by: WEEK` o `by: MONTH`. Un mes es MONTH. No existe otro by. Un día, el mínimo o el máximo salen de esta serie; no pidas otra query para eso.
+  - comparativa → `countCompare(by: DAY) { key inbound outbound n usuarios }`. by también puede ser NONE, WEEK, MONTH o CONNECTION.
   - reporte → dos o más de esos campos, hermanos, en una sola query, cada uno con sus subcampos.
   Enums, sin comillas y en MAYÚSCULAS: entity (CRM_CLIENTS, MESSAGES, CONVERSATIONS, CONNECTIONS), metric (COUNT, COUNT_DISTINCT_CLIENTS), by.
   Strings, con comillas y en minúsculas: direction solo "inbound" o "outbound" (solo en mensajes; inbound lo escribió el contacto). clientStatus solo "new", "contacted", "active", "closed", "lost", "inactive", "archived". since y until son strings ISO; until es exclusivo.
@@ -127,8 +127,8 @@ _DASHBOARD = """\
 _KIND = {
     "kpi": "- kind kpi. Query: `kpis { agencies advisors clients lost connections conversations openWindows unanswered messages inbound outbound conMensaje usuarios }` o `count(entity: MESSAGES, metric: COUNT)`.",
     "categorias": "- kind categorias. Query: `countBy(entity: MESSAGES, by: ADVISOR) { key n }`.",
-    "tendencia": "- kind tendencia. Query: `countOverTime(entity: MESSAGES, by: DAY) { key n }` o `by: WEEK`. Un día, el mínimo o el máximo salen de esta serie.",
-    "comparativa": "- kind comparativa. Query: `countCompare(by: DAY) { key inbound outbound n usuarios }`. by también puede ser NONE, WEEK o CONNECTION.",
+    "tendencia": "- kind tendencia. Query: `countOverTime(entity: MESSAGES, by: DAY) { key n }`, `by: WEEK` o `by: MONTH`. Un mes es MONTH. No existe otro by.",
+    "comparativa": "- kind comparativa. Query: `countCompare(by: DAY) { key inbound outbound n usuarios }`. by también puede ser NONE, WEEK, MONTH o CONNECTION.",
     "reporte": "- kind reporte. Dos o más campos de conteo, hermanos, en una sola query, cada uno con sus subcampos.",
 }
 
@@ -136,8 +136,8 @@ _KIND_ALL = """\
   El kind es el campo de la query, no al revés:
   - kpi → `kpis { agencies advisors clients lost connections conversations openWindows unanswered messages inbound outbound conMensaje usuarios }` o `count(entity: MESSAGES, metric: COUNT)`.
   - categorias → `countBy(entity: MESSAGES, by: ADVISOR) { key n }`.
-  - tendencia → `countOverTime(entity: MESSAGES, by: DAY) { key n }` o `by: WEEK`. Un día, el mínimo o el máximo salen de esta serie; no pidas otra query para eso.
-  - comparativa → `countCompare(by: DAY) { key inbound outbound n usuarios }`. by también puede ser NONE, WEEK o CONNECTION.
+  - tendencia → `countOverTime(entity: MESSAGES, by: DAY) { key n }`, `by: WEEK` o `by: MONTH`. Un mes es MONTH. No existe otro by. Un día, el mínimo o el máximo salen de esta serie; no pidas otra query para eso.
+  - comparativa → `countCompare(by: DAY) { key inbound outbound n usuarios }`. by también puede ser NONE, WEEK, MONTH o CONNECTION.
   - reporte → dos o más de esos campos, hermanos, en una sola query, cada uno con sus subcampos.
   graphic: bar (default); pie solo categorias; line o area en tendencia, o en un reporte de varios countOverTime; stacked o scatter solo comparativa. Heatmap no existe.
   Comparar dos asesores día a día: UNA render_dashboard, kind reporte, graphic line. Dos countOverTime hermanos con alias, cada uno con su advisorId y by: DAY.
