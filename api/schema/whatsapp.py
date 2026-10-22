@@ -6,7 +6,6 @@ from datetime import datetime
 from typing import Annotated, Optional
 
 import strawberry
-from strawberry.scalars import JSON
 
 from api.managers import advisors as advisors_mgr
 from api.managers import agencies as agencies_mgr
@@ -143,13 +142,23 @@ class EstadoHit:
 
 
 @strawberry.type
+class KeyTopic:
+    uid: strawberry.ID
+    name: str
+
+
+@strawberry.type
 class ConversationEpisode:
     uid: strawberry.ID
     window_from: datetime
     window_to: datetime
     summary: str
-    key_topics: JSON
     cat: datetime
+
+    @strawberry.field
+    def topics(self) -> list[KeyTopic]:
+        rows = episodes_mgr.list_topics(str(self.uid))
+        return [KeyTopic(uid=str(row["uid"]), name=row["name"]) for row in rows]
 
 
 def _agency_from_row(row: dict) -> Agency:
@@ -242,6 +251,5 @@ def _episode_from_row(row: dict) -> ConversationEpisode:
         window_from=row["window_from"],
         window_to=row["window_to"],
         summary=row["summary"],
-        key_topics=row["key_topics"],
         cat=row["cat"],
     )

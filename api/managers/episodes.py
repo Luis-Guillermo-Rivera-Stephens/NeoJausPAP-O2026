@@ -17,7 +17,11 @@ JOIN whatsapp_conversation wc ON wc.uid = e.conversation_id
 JOIN crm_clients c ON c.uid = wc.client_id AND c.is_deleted = false
 WHERE (
     e.summary ILIKE %s
-    OR e.key_topics::text ILIKE %s
+    OR EXISTS (
+        SELECT 1 FROM whatsapp_episode_topic et
+        JOIN whatsapp_key_topic t ON t.uid = et.topic_id
+        WHERE et.episode_id = e.uid AND t.name ILIKE %s
+    )
     OR c.first_name ILIKE %s
     OR coalesce(c.first_last_name, '') ILIKE %s
     OR coalesce(c.preferred_name, '') ILIKE %s
@@ -52,11 +56,31 @@ def list_by_conversation(
     params: list[object] = [conversation_id]
     pattern = like_pattern(q)
     if pattern:
-        sql += " AND (summary ILIKE %s OR key_topics::text ILIKE %s)"
+        sql += """ AND (
+            summary ILIKE %s
+            OR EXISTS (
+                SELECT 1 FROM whatsapp_episode_topic et
+                JOIN whatsapp_key_topic t ON t.uid = et.topic_id
+                WHERE et.episode_id = whatsapp_conversation_episode.uid AND t.name ILIKE %s
+            )
+        )"""
         params.extend([pattern, pattern])
     sql += " ORDER BY window_to DESC LIMIT %s"
     params.append(safe_limit)
     return fetch_all(sql, tuple(params))
+
+
+def list_topics(episode_id: str) -> list[dict]:
+    return fetch_all(
+        """
+        SELECT t.uid, t.name
+        FROM whatsapp_episode_topic et
+        JOIN whatsapp_key_topic t ON t.uid = et.topic_id
+        WHERE et.episode_id = %s
+        ORDER BY t.name
+        """,
+        (episode_id,),
+    )
 
 
 def buscar_estado(

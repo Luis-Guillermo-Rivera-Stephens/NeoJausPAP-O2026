@@ -129,7 +129,6 @@ erDiagram
         uuid uid PK
         uuid conversation_id FK
         text summary
-        jsonb key_topics
     }
 ```
 
@@ -278,8 +277,9 @@ donde se validan sólo desde el código. Postgres aquí no los va a corregir.
 | `conversation_id` | uuid | FK → `whatsapp_conversation` |
 | `window_from`, `window_to` | timestamptz | periodo que resume |
 | `summary` | text | el resumen |
-| `key_topics` | jsonb | `["precio", "disponibilidad"]` |
 | `model`, `cost_usd_micros` | | qué modelo lo generó y cuánto costó |
+
+A partir de `db/migrations/006_episode_topics.sql` los temas viven en `whatsapp_key_topic` y `whatsapp_episode_topic`.
 
 Para un agente suele ser más barato leer esto que 40 mensajes sueltos.
 </details>

@@ -32,6 +32,7 @@ OUTBOUND_MESSAGES = (
     "Te envio los detalles de la propiedad para que los revises.",
     "Quedo atento a tus comentarios.",
 )
+EPISODE_TOPICS = ("disponibilidad", "precio", "seguimiento")
 
 
 def parse_args():
@@ -300,11 +301,11 @@ def make_episodes(conversations, rng):
         window_to = conversation["last_activity"]
         episodes.append(
             (
+                uuid.uuid4(),
                 conversation["uid"],
                 window_to - timedelta(days=3),
                 window_to,
                 "Resumen ficticio: el contacto solicito informacion y seguimiento.",
-                Jsonb(["disponibilidad", "precio", "seguimiento"]),
                 "demo-faker",
                 rng.randint(100, 3000),
                 window_to,
@@ -316,12 +317,30 @@ def make_episodes(conversations, rng):
 def insert_episodes(cursor, episodes):
     cursor.executemany(
         """
+        INSERT INTO whatsapp_key_topic (name) VALUES (%s)
+        ON CONFLICT (name) DO NOTHING
+        """,
+        [(name,) for name in EPISODE_TOPICS],
+    )
+    cursor.executemany(
+        """
         INSERT INTO whatsapp_conversation_episode (
-            conversation_id, window_from, window_to, summary, key_topics,
+            uid, conversation_id, window_from, window_to, summary,
             model, cost_usd_micros, cat
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """,
         episodes,
+    )
+    links = [
+        (episode[0], name) for episode in episodes for name in EPISODE_TOPICS
+    ]
+    cursor.executemany(
+        """
+        INSERT INTO whatsapp_episode_topic (episode_id, topic_id)
+        SELECT %s, uid FROM whatsapp_key_topic WHERE name = %s
+        ON CONFLICT DO NOTHING
+        """,
+        links,
     )
 
 

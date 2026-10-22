@@ -302,12 +302,16 @@ Comparen el resultado con el de 4.1: la diferencia es justo el efecto del huso h
 `whatsapp_conversation_episode` guarda resumenes generados por un modelo. Para un agente suele
 ser mejor leer esto que 40 mensajes sueltos:
 
+A partir de `db/migrations/006_episode_topics.sql` los temas viven en `whatsapp_key_topic` y `whatsapp_episode_topic`.
+
 ```sql
 SELECT c.first_name, e.window_from::date, e.window_to::date,
-       e.summary, e.key_topics, e.model
+       e.summary, t.name AS topic, e.model
 FROM whatsapp_conversation_episode e
 JOIN whatsapp_conversation wc ON wc.uid = e.conversation_id
 JOIN crm_clients c ON c.uid = wc.client_id
+LEFT JOIN whatsapp_episode_topic et ON et.episode_id = e.uid
+LEFT JOIN whatsapp_key_topic t ON t.uid = et.topic_id
 ORDER BY e.window_to DESC;
 ```
 

@@ -34,7 +34,14 @@ def list_conversations(
                 OR EXISTS (
                     SELECT 1 FROM whatsapp_conversation_episode e
                     WHERE e.conversation_id = whatsapp_conversation.uid
-                      AND (e.summary ILIKE %s OR e.key_topics::text ILIKE %s)
+                      AND (
+                        e.summary ILIKE %s
+                        OR EXISTS (
+                            SELECT 1 FROM whatsapp_episode_topic et
+                            JOIN whatsapp_key_topic t ON t.uid = et.topic_id
+                            WHERE et.episode_id = e.uid AND t.name ILIKE %s
+                        )
+                      )
                 )
                 OR EXISTS (
                     SELECT 1 FROM whatsapp_message m
