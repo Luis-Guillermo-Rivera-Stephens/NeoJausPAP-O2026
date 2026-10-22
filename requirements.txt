@@ -6,3 +6,5 @@ httpx
 strawberry-graphql[fastapi]
 psycopg[binary,pool]
 Faker
+redis
+typesafe-sdk
