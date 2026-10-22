@@ -75,6 +75,30 @@ with psycopg.connect("postgresql://pap:pap@localhost:5433/papdb") as conn:
         print(cur.fetchone()[0])
 ```
 
+### Generar datos ficticios adicionales
+
+`db/init/02_seed.sql` crea un conjunto inicial determinista al crear el volumen. Para agregar
+mas datos sin borrar los existentes, instala las dependencias del proyecto y ejecuta desde
+la carpeta `NeoJausPAP-O2026`:
+
+```bash
+python db/generate_fake_data.py --count 15 --seed 2026
+```
+
+El generador crea contactos del CRM, una conversacion por contacto, mensajes y algunos
+resumenes. Usa las agencias, asesores y numeros de WhatsApp activos ya existentes, y solo se
+conecta a `localhost:5433` para evitar modificar una base remota o el Postgres de trabajo.
+Los datos se agregan en una transaccion; si ocurre un error, no queda una carga parcial.
+`--count` define la cantidad de contactos nuevos (por defecto 15). `--seed` permite repetir
+las elecciones aleatorias de nombres, categorias y patrones; los identificadores siempre son
+nuevos para que ejecutar el generador varias veces agregue filas sin colisiones.
+
+Para comprobar el total:
+
+```bash
+docker exec -it pap-postgres psql -U pap -d papdb -c "SELECT * FROM pap_resumen();"
+```
+
 ---
 
 ## 2. Dos convenciones que hay que saber antes de escribir una query
