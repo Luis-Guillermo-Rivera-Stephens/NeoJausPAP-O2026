@@ -146,6 +146,13 @@ class KeyTopic:
     uid: strawberry.ID
     name: str
 
+    @strawberry.field
+    def episodes(
+        self, limit: int = 5
+    ) -> list[Annotated["ConversationEpisode", strawberry.lazy("api.schema.whatsapp")]]:
+        rows = episodes_mgr.list_by_topic(str(self.uid), limit)
+        return [_episode_from_row(row) for row in rows]
+
 
 @strawberry.type
 class ConversationEpisode:
@@ -154,11 +161,17 @@ class ConversationEpisode:
     window_to: datetime
     summary: str
     cat: datetime
+    _conversation_id: strawberry.Private[str]
 
     @strawberry.field
     def topics(self) -> list[KeyTopic]:
         rows = episodes_mgr.list_topics(str(self.uid))
         return [KeyTopic(uid=str(row["uid"]), name=row["name"]) for row in rows]
+
+    @strawberry.field
+    def conversation(self) -> Optional[Conversation]:
+        row = conversations_mgr.get_conversation(self._conversation_id)
+        return _conversation_from_row(row) if row else None
 
 
 def _agency_from_row(row: dict) -> Agency:
@@ -252,4 +265,5 @@ def _episode_from_row(row: dict) -> ConversationEpisode:
         window_to=row["window_to"],
         summary=row["summary"],
         cat=row["cat"],
+        _conversation_id=str(row["conversation_id"]),
     )

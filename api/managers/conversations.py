@@ -1,6 +1,6 @@
 from typing import Optional
 
-from api.managers._sql import clamp_limit, fetch_all, like_pattern
+from api.managers._sql import clamp_limit, fetch_all, fetch_one, like_pattern
 
 
 def list_conversations(
@@ -71,3 +71,7 @@ def list_by_connection(connection_id: str, limit: int = 10) -> list[dict]:
         "SELECT * FROM whatsapp_conversation WHERE connection_id = %s ORDER BY cat DESC LIMIT %s",
         (connection_id, clamp_limit(limit)),
     )
+
+
+def get_conversation(uid: str) -> Optional[dict]:
+    return fetch_one("SELECT * FROM whatsapp_conversation WHERE uid = %s", (uid,))

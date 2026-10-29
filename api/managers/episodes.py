@@ -86,6 +86,34 @@ def list_topics(episode_id: str) -> list[dict]:
     )
 
 
+def search_topics(q: Optional[str] = None, limit: int = 10) -> list[dict]:
+    safe_limit = clamp_limit(limit)
+    pattern = like_pattern(q)
+    if pattern:
+        return fetch_all(
+            "SELECT uid, name FROM whatsapp_key_topic WHERE name ILIKE %s ORDER BY name LIMIT %s",
+            (pattern, safe_limit),
+        )
+    return fetch_all(
+        "SELECT uid, name FROM whatsapp_key_topic ORDER BY name LIMIT %s",
+        (safe_limit,),
+    )
+
+
+def list_by_topic(topic_id: str, limit: int = 10) -> list[dict]:
+    return fetch_all(
+        """
+        SELECT e.*
+        FROM whatsapp_episode_topic et
+        JOIN whatsapp_conversation_episode e ON e.uid = et.episode_id
+        WHERE et.topic_id = %s
+        ORDER BY e.window_to DESC
+        LIMIT %s
+        """,
+        (topic_id, clamp_limit(limit)),
+    )
+
+
 def buscar_estado(
     q: str,
     client_id: Optional[str] = None,

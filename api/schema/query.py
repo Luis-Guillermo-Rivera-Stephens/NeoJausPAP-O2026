@@ -20,6 +20,7 @@ from api.schema.whatsapp import (
     Conversation,
     CrmClient,
     EstadoHit,
+    KeyTopic,
     WhatsappConnection,
     _advisor_from_row,
     _agency_from_row,
@@ -119,6 +120,15 @@ class Query:
             limit,
         )
         return [_estado_from_row(row) for row in rows]
+
+    @strawberry.field
+    def topics(
+        self,
+        q: Optional[str] = None,
+        limit: int = 10,
+    ) -> list[KeyTopic]:
+        rows = episodes_mgr.search_topics(q, limit)
+        return [KeyTopic(uid=str(row["uid"]), name=row["name"]) for row in rows]
 
     @strawberry.field
     def memories(

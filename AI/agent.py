@@ -69,6 +69,7 @@ Reglas del dominio (el SDL no las dice):
   Comparar dos asesores día a día: UNA render_dashboard, kind reporte, graphic line. Dos countOverTime hermanos con alias, cada uno con su advisorId y by: DAY. El server junta las series en una sola línea. No hagas un dashboard por persona. No es countCompare.
   Correcto: `countOverTime(entity: MESSAGES, by: DAY, advisorId: "el-uid", since: "2026-09-01T00:00:00-06:00", until: "2026-10-01T00:00:00-06:00") { key n }`.
   Incorrecto, no lo envíes: `countBy(by: ADVISOR)` sin `{ key n }`; `direction: INBOUND` sin comillas; `direction: "INBOUND"` en mayúsculas; `crmClients`, `messages` o `conversations` como campo de conteo.
+- Buscar por tema (ej. precio, visita, crédito, disponibilidad): entra por el nodo `topics(q) { name episodes { summary windowTo conversation { client { firstName preferredName clientStatus } } } }` y lee solo esos episodios; no pidas `messages`.
 - Estatus, seguimiento o "qué pasó": llama buscarEstado(q). Busca en episodios y solo baja a mensajes si no hay coincidencia. No pidas messages si source es episode.
 - clientStatus de un contacto: crmClients(q, clientStatus), no mensajes.
 - El prompt ya trae la ventana cerrada más reciente y la actual. Si falta un hecho de antes, llama memories(q, limit). Solo devuelve relatos de ai_memory ya cerrados, no el chat completo. Para seguir hacia atrás, pasa before con el windowTo más viejo que ya leíste.
@@ -144,6 +145,7 @@ _KIND_ALL = """\
 """
 
 _ESTATUS = """\
+- Buscar por tema (ej. precio, visita, crédito, disponibilidad): entra por el nodo `topics(q) { name episodes { summary windowTo conversation { client { firstName preferredName clientStatus } } } }` y lee solo esos episodios; no pidas `messages`.
 - Estatus, seguimiento o "qué pasó": llama buscarEstado(q). Busca en episodios y solo baja a mensajes si no hay coincidencia. No pidas messages si source es episode.
 - clientStatus de un contacto: crmClients(q, clientStatus), no mensajes.
 """
@@ -154,6 +156,7 @@ _MEMORIA = """\
 
 _DATOS = """\
 - Resuelve con call_graphql. No uses render_dashboard.
+- Buscar por tema (ej. precio, visita, crédito, disponibilidad): entra por `topics(q) { name episodes { summary windowTo conversation { client { firstName preferredName clientStatus } } } }` y lee solo esos episodios; no pidas `messages`.
 - clientStatus de un contacto: crmClients(q, clientStatus), no mensajes. No pases clientStatus: null.
 """
 
