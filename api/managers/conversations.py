@@ -8,6 +8,7 @@ def list_conversations(
     client_id: Optional[str] = None,
     limit: int = 10,
     q: Optional[str] = None,
+    conversation_category: Optional[str] = None,
 ) -> list[dict]:
     safe_limit = clamp_limit(limit)
     clauses: list[str] = []
@@ -18,6 +19,12 @@ def list_conversations(
     if client_id is not None:
         clauses.append("client_id = %s")
         params.append(client_id)
+    if conversation_category is not None:
+        category = conversation_category.strip().lower()
+        if category not in {"service", "utility", "marketing", "referral"}:
+            raise ValueError("Categoría inválida: usa service, utility, marketing o referral")
+        clauses.append("conversation_category = %s")
+        params.append(category)
     pattern = like_pattern(q)
     if pattern:
         clauses.append(

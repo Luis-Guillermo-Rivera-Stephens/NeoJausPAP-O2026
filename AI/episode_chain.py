@@ -14,6 +14,8 @@ _MODEL = os.getenv("AI_MODEL", "gemini-3.6-flash")
 _PROMPT = (
     "Resume los mensajes de WhatsApp en español en 2 o 3 oraciones y extrae de 1 a 5 temas clave "
     "(sustantivos cortos en minúsculas, ej: precio, disponibilidad, visita, credito). "
+    "Si se menciona un activo o inmueble concreto, incluye su nombre o identificador exacto "
+    "como uno de los temas; no inventes uno si no aparece. "
     "Si viene un resumen actual, intégralo con los mensajes nuevos. "
     'Responde SOLO JSON con las llaves "summary" (string) y "topics" (lista de strings).'
 )

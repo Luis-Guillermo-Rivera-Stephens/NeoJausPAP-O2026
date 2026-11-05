@@ -1,0 +1,266 @@
+[EPISODES] pendientes: 75 conversaciones
+INFO:     127.0.0.1:58059 - "GET /health HTTP/1.1" 200 OK
+[EPISODES] error conv=039856be-12e4-4546-90ca-5be95818276d: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=05d10ad0-fba2-421b-9347-b9fe03a9c78d: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+INFO:     127.0.0.1:59511 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59511 - "GET /styles/chat.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56491 - "GET /scripts/chat.js?v=6 HTTP/1.1" 200 OK
+[EPISODES] error conv=06b24290-24a0-42be-af3d-94d2dfe48e15: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+INFO:     127.0.0.1:59511 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56491 - "GET /chats?limit=20 HTTP/1.1" 500 Internal Server Error
+[EPISODES] error conv=07753e06-a631-45d8-9b88-941e936a0588: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=2a30369a-cb79-4b0a-89c7-a50b780a1c68: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=3d994f38-bb31-4b85-80ad-5e6bc05a3c78: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=42d8f89c-17ec-4923-a29a-f39b36ebfe73: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=488967f9-b821-4a22-a3d5-73e5a759827d: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=4a31a493-bcb5-4066-9080-b530f4d0e219: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=6f6591a5-41d5-4d4e-90cd-e6b4e50d5d7b: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=7639703e-f0a1-43ff-92a0-67b324edefd9: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+INFO:     127.0.0.1:55135 - "POST /chat HTTP/1.1" 500 Internal Server Error
+[EPISODES] error conv=8e3fedef-1875-4a15-970b-fffec0ecff78: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=a52c16a2-7f03-463f-852d-3e95f99fe60c: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=a71df398-2aa5-4f96-8ad9-6c34885b2ed6: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=b0639198-a9a5-4e73-b16d-25bdbe9d4e28: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=d2a2fab5-7be6-437b-a11c-82712c51f5fa: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=db4de7e0-199b-43ce-834d-3e7a4b9d6a2f: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000001: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000002: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000003: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000004: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000005: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000006: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000008: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000009: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000010: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000011: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000012: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000013: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000015: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000016: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000017: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000018: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000019: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000020: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000022: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000023: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000024: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000025: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000026: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000027: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000029: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000030: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000031: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000032: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000033: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000034: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000036: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000037: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000038: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000039: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000040: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000041: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000043: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000044: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000045: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000046: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000047: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000048: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000050: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000051: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000052: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000053: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000054: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000055: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000057: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000058: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000059: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000060: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000061: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000062: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000064: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000065: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=e0000000-0000-4000-8000-000000000066: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+[EPISODES] error conv=fea33afc-45e5-437b-a4d5-dc818f043198: relation "whatsapp_episode_topic" does not exist
+LINE 1: DELETE FROM whatsapp_episode_topic WHERE episode_id = $1
+                    ^
+INFO:     127.0.0.1:58229 - "GET /chats?limit=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58229 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60768 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60768 - "GET /styles/chat.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:63529 - "GET /scripts/chat.js?v=6 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:63529 - "GET /chats?limit=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60768 - "GET /styles/chat.css HTTP/1.1" 304 Not Modified
+[AGENT] /chat recibido: 'hola'
+[CACHE] miss chat=974829c1-68f4-49aa-9527-3f1be4ae9668
+[DB] contexto chat=974829c1-68f4-49aa-9527-3f1be4ae9668 closed='' current=0 chars
+[JEV] tokens: input=787 output=238 cost_usd=0.00003305 model=jev-1.14.0
+[JEV] sin decisiones sobre el umbral
+[AGENT] ventana actual: 'El usuario inició un chat nuevo saludando y pidiendo asistencia.'
+[AGENT] tokens: input=5095 output=45 total=5140 requests=1
+INFO:     127.0.0.1:60768 - "POST /chat HTTP/1.1" 200 OK
+[AGENT] /chat recibido: 'quiero qu eme des un grafico de los asesores con mayores conversaciones'
+[CACHE] hit chat=974829c1-68f4-49aa-9527-3f1be4ae9668 closed='' current=64 chars
+[JEV] tokens: input=804 output=239 cost_usd=0.00003377 model=jev-1.14.0
+[JEV] {'ruta': 'dashboard', 'kind': 'categorias', 'graphic': 'bar'}
+[TOOL] render_dashboard kind=categorias graphic=bar
+[AGENT] ventana actual: 'El usuario inició un chat nuevo saludando y pidiendo asistencia. Solicitó un gráfico de los asesores con mayores conversaciones. Se generó un gráfico de barras donde rgomez tiene el mayor pico con 39 conversaciones, el mínimo de conversaciones entre asesores es 11 y el total de conversaciones es 86.'
+[AGENT] tokens: input=9132 output=193 total=9325 requests=2
+INFO:     127.0.0.1:60562 - "POST /chat HTTP/1.1" 200 OK
+[AGENT] /chat recibido: 'que conversaciones hablan de los precios'
+[CACHE] hit chat=974829c1-68f4-49aa-9527-3f1be4ae9668 closed='' current=300 chars
+[JEV] tokens: input=796 output=238 cost_usd=0.00003343 model=jev-1.14.0
+[JEV] sin decisiones sobre el umbral
+[TOOL] call_graphql query=query{topics(q:"precio", limit:5){uid name episodes(limit:5){summary windowTo conversation{client{firstName preferredName clientStatus}}}}}
+[EPISODES] pendientes: 87 conversaciones
+INFO:     127.0.0.1:62722 - "POST /graphql HTTP/1.1" 200 OK
+[AGENT] ventana actual: 'El usuario pidió un gráfico de los asesores con mayores conversaciones. Se generó un gráfico de barras donde rgomez tiene el mayor pico con 39 conversaciones, el mínimo es 11 y el total 86. Luego preguntó qué conversaciones hablan de precios. Encontramos varias conversaciones con resumen "el contacto solicitó información y seguimiento" que hablan de precios, con los contactos Agustín, Dolores, Sonia (en dos conversaciones) y Clara, con diversos estatus: inactive, lost, active y archived.'
+[AGENT] tokens: input=10747 output=205 total=10952 requests=2
+INFO:     127.0.0.1:62717 - "POST /chat HTTP/1.1" 200 OK

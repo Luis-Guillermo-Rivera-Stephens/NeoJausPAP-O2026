@@ -98,12 +98,14 @@ class Query:
         client_id: Optional[strawberry.ID] = None,
         limit: int = 10,
         q: Optional[str] = None,
+        conversation_category: Optional[str] = None,
     ) -> list[Conversation]:
         rows = conversations_mgr.list_conversations(
             str(connection_id) if connection_id is not None else None,
             str(client_id) if client_id is not None else None,
             limit,
             q,
+            conversation_category,
         )
         return [_conversation_from_row(row) for row in rows]
 

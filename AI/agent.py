@@ -69,9 +69,8 @@ Reglas del dominio (el SDL no las dice):
   Comparar dos asesores día a día: UNA render_dashboard, kind reporte, graphic line. Dos countOverTime hermanos con alias, cada uno con su advisorId y by: DAY. El server junta las series en una sola línea. No hagas un dashboard por persona. No es countCompare.
   Correcto: `countOverTime(entity: MESSAGES, by: DAY, advisorId: "el-uid", since: "2026-09-01T00:00:00-06:00", until: "2026-10-01T00:00:00-06:00") { key n }`.
   Incorrecto, no lo envíes: `countBy(by: ADVISOR)` sin `{ key n }`; `direction: INBOUND` sin comillas; `direction: "INBOUND"` en mayúsculas; `crmClients`, `messages` o `conversations` como campo de conteo.
-- Buscar por tema (ej. precio, visita, crédito, disponibilidad): entra por el nodo `topics(q) { name episodes { summary windowTo conversation { client { firstName preferredName clientStatus } } } }` y lee solo esos episodios; no pidas `messages`.
 - Estatus, seguimiento o "qué pasó": llama buscarEstado(q). Busca en episodios y solo baja a mensajes si no hay coincidencia. No pidas messages si source es episode.
-- clientStatus de un contacto: crmClients(q, clientStatus), no mensajes.
+- Para buscar un contacto por nombre o datos personales, usa crmClients(q, clientStatus).
 - El prompt ya trae la ventana cerrada más reciente y la actual. Si falta un hecho de antes, llama memories(q, limit). Solo devuelve relatos de ai_memory ya cerrados, no el chat completo. Para seguir hacia atrás, pasa before con el windowTo más viejo que ya leíste.
 
 Schema GraphQL exacto:
@@ -145,9 +144,8 @@ _KIND_ALL = """\
 """
 
 _ESTATUS = """\
-- Buscar por tema (ej. precio, visita, crédito, disponibilidad): entra por el nodo `topics(q) { name episodes { summary windowTo conversation { client { firstName preferredName clientStatus } } } }` y lee solo esos episodios; no pidas `messages`.
 - Estatus, seguimiento o "qué pasó": llama buscarEstado(q). Busca en episodios y solo baja a mensajes si no hay coincidencia. No pidas messages si source es episode.
-- clientStatus de un contacto: crmClients(q, clientStatus), no mensajes.
+- Para buscar un contacto por nombre o datos personales, usa crmClients(q, clientStatus).
 """
 
 _MEMORIA = """\
@@ -156,8 +154,26 @@ _MEMORIA = """\
 
 _DATOS = """\
 - Resuelve con call_graphql. No uses render_dashboard.
-- Buscar por tema (ej. precio, visita, crédito, disponibilidad): entra por `topics(q) { name episodes { summary windowTo conversation { client { firstName preferredName clientStatus } } } }` y lee solo esos episodios; no pidas `messages`.
-- clientStatus de un contacto: crmClients(q, clientStatus), no mensajes. No pases clientStatus: null.
+- Para buscar un contacto por nombre o datos personales, usa crmClients(q, clientStatus). No pases clientStatus: null.
+"""
+
+_TOPIC_RULES = """\
+Consultas sobre temas de conversaciones:
+- Si preguntan por un tema (visita, precio, crédito o un inmueble), incluso junto con un estado del cliente, busca el tema en topics y consulta sus episodios y clientes. Una pregunta de seguimiento conserva el tema y los filtros de la pregunta anterior salvo que el usuario los cambie.
+- `crmClients(q: ...)` busca datos del contacto (nombre, teléfono, correo, perfil y estado), NO busca temas, resúmenes ni mensajes. Nunca uses `crmClients(q: "visita", clientStatus: "inactive")` para buscar clientes interesados en visitas. Un resultado vacío de esa consulta no prueba que no existan.
+- Ejemplo válido: `{ topics(q: "visita", limit: 50) { name episodes(limit: 50) { uid summary windowFrom windowTo conversation { uid client { uid firstName firstLastName preferredName clientStatus } } } } }`. La selección de GraphQL debe ir entre llaves. Para clientes inactivos, conserva solo los episodios cuyo client.clientStatus sea `inactive` y examina summary: la etiqueta visita por sí sola no demuestra interés ni una cita confirmada. Distingue interés, visita ofrecida y cita acordada. No deduzcas quién mostró más interés sin evidencia o un criterio de comparación.
+- `topics` y `episodes` tienen límites independientes, máximo 50 y sin paginación. En listados amplios usa limit: 50 en ambos; si alguna lista alcanza el límite, advierte que los resultados pueden ser incompletos. No concluyas que no existen coincidencias fuera de los resultados recibidos, ni presentes el tamaño de una lista limitada como total. Distingue clientes por uid, no solo por nombre.
+- Los nombres de temas pueden tener variantes, por ejemplo `credito` y `crédito`; considera ambas cuando sea pertinente. Los periodos windowFrom/windowTo describen la ventana del episodio, no demuestran en qué fecha ocurrió cada hecho. Si no hay evidencia suficiente para un filtro temporal, dilo sin inventar.
+"""
+
+
+_IDENTITY_CATEGORY_RULES = """\
+- clientStatus siempre usa estos valores exactos: nuevo o cliente nuevo → "new"; contactado → "contacted"; activo → "active"; cerrado → "closed"; perdido → "lost"; inactivo → "inactive"; archivado → "archived". Nunca envíes etiquetas españolas como clientStatus.
+- Categorías y temas son dimensiones diferentes. service, utility, marketing y referral son conversationCategory; no son topics ni palabras que deban aparecer en mensajes. Para clientes de esas categorías usa conversations(conversationCategory: "service", limit: 50) { uid conversationCategory client { uid firstName firstLastName preferredName clientStatus primaryPhone } }. Deduplica por client.uid. Si se alcanza el límite, informa que el listado puede ser parcial.
+- Si después de una gráfica preguntan quién habló de service, conserva el contexto de categoría. Solo busca la palabra literal en mensajes si el usuario lo pide explícitamente. La ausencia de menciones literales no implica ausencia de conversaciones de esa categoría.
+- CONVERSATION_CATEGORY cuenta conversaciones por categoría: titula la gráfica "Conversaciones por categoría", nunca "Top topics". Los temas reales son topics asociados a episodios (visita, precio, crédito). No sustituyas una gráfica de temas por categorías; si no puedes contar todos los temas con las herramientas disponibles, explica la limitación sin inventar totales.
+- La identidad del contacto es su uid/clientId, nunca su nombre. Solicita siempre ese identificador al consultar personas. En buscarEstado usa clientId para separar coincidencias; si necesitas apellidos o teléfono consulta crmClient(uid: ...). Contactos con el mismo nombre y distinto uid son personas distintas. No unas sus consultas, presupuestos ni estatus. clientStatus es el estado actual del contacto, no un estado por episodio.
+- Presenta nombre y apellido; si siguen siendo iguales o faltan apellidos, distingue con los últimos cuatro dígitos del teléfono. Si no hay un dato visible para distinguirlos, indica que son contactos distintos y solicita aclaración antes de atribuirles hechos. No reutilices un uid de memoria solo porque coincide el primer nombre; conserva cada identidad por separado. Corrige expresamente las confusiones previas si las consultas actuales las contradicen.
 """
 
 
@@ -179,9 +195,9 @@ def instructions_for(decisions: dict | None) -> str:
                 "llama `{ advisors { uid nickname } }`, toma ese uid y pásalo en advisorId. Si el token ya está, reutilízalo y no llames advisors.",
                 "usa el advisorId del mensaje. No llames advisors.",
             )
-        return text + schema.as_str()
+        return text + "\n" + _IDENTITY_CATEGORY_RULES + "\n" + _TOPIC_RULES + "\n" + schema.as_str()
     route = decisions["ruta"]
-    parts = [_CORE, decisions.get("since") and _DATES_DONE or _DATES]
+    parts = [_CORE, _IDENTITY_CATEGORY_RULES, decisions.get("since") and _DATES_DONE or _DATES]
     if decisions.get("advisor_id"):
         parts.append(_ADVISOR_DONE)
     elif route in ("datos", "dashboard"):
@@ -198,6 +214,8 @@ def instructions_for(decisions: dict | None) -> str:
         parts.append(_ESTATUS)
     elif route == "memoria":
         parts.append(_MEMORIA)
+    if route in ("datos", "estatus"):
+        parts.append(_TOPIC_RULES)
     parts.append(tail)
     return "\n".join(parts)
 

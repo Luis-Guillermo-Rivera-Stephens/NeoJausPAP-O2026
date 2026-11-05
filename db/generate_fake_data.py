@@ -20,19 +20,68 @@ CLIENT_STATUSES = ("new", "contacted", "active", "closed", "lost", "inactive", "
 CLIENT_TYPES = ("buyer", "seller", "renter", "landlord", "investor", "developer", "other", "agent")
 LOST_REASONS = ("price", "financing", "no_answer", "competitor", "not_interested", "other")
 CONVERSATION_CATEGORIES = ("marketing", "service", "utility", "referral")
-INBOUND_MESSAGES = (
-    "Hola, me interesa conocer mas sobre una propiedad.",
-    "Sigue disponible? Me gustaria agendar una visita.",
-    "Me puede compartir informacion sobre el precio y la ubicacion?",
-    "Aceptan credito hipotecario?",
+# Cada camino contiene pares de mensajes relacionados y una conclusion propia.
+# Las opciones dentro de una etapa son ramas completas, no respuestas aisladas.
+CONVERSATION_TREES = (
+    {
+        "opening": (("inbound", "Hola, vi anunciada la Casa Jardines. ¿Sigue disponible?"),
+                    ("outbound", "Hola, sí está disponible. ¿Te gustaría conocer el precio y la ubicación?"),
+                    ("inbound", "Sí, por favor."),
+                    ("outbound", "Está en la zona centro y el precio publicado es de $2,500,000.")),
+        "branches": (
+            {"messages": (("inbound", "Me interesa. ¿Podemos agendar una visita?"),
+                          ("outbound", "Claro, ¿te acomoda el sábado a las 11 de la mañana?"),
+                          ("inbound", "Sí, me queda bien."),
+                          ("outbound", "Perfecto, queda agendada. Te enviaré la ubicación antes de la visita.")),
+             "summary": "El contacto consultó disponibilidad y precio; acordó una visita el sábado.",
+             "topics": ("casa jardines", "disponibilidad", "precio", "visita")},
+            {"messages": (("inbound", "Está fuera de mi presupuesto. ¿Tienen opciones más económicas?"),
+                          ("outbound", "Sí, puedo buscar alternativas. ¿Cuál es tu presupuesto máximo?"),
+                          ("inbound", "Hasta $2,000,000."),
+                          ("outbound", "Gracias, buscaré opciones dentro de ese presupuesto y te contactaré.")),
+             "summary": "El contacto consultó el precio y solicitó alternativas dentro de su presupuesto.",
+             "topics": ("casa jardines", "disponibilidad", "precio", "presupuesto", "seguimiento")},
+        ),
+    },
+    {
+        "opening": (("inbound", "Hola, me interesa comprar una casa. ¿Aceptan crédito hipotecario?"),
+                    ("outbound", "Hola, sí. Trabajamos con crédito hipotecario. ¿Ya tienes una preaprobación?")),
+        "branches": (
+            {"messages": (("inbound", "Sí, ya tengo una preaprobación bancaria."),
+                          ("outbound", "Excelente. ¿De cuánto es el monto autorizado?"),
+                          ("inbound", "De hasta $2,000,000."),
+                          ("outbound", "Perfecto, te compartiré propiedades compatibles con ese monto.")),
+             "summary": "El contacto tiene un crédito preaprobado y recibirá opciones según su monto.",
+             "topics": ("credito hipotecario", "presupuesto", "seguimiento")},
+            {"messages": (("inbound", "Todavía no, apenas estoy investigando."),
+                          ("outbound", "Podemos orientarte para iniciar la preaprobación. ¿Te comparto los requisitos?"),
+                          ("inbound", "Sí, por favor."),
+                          ("outbound", "Te enviaré la lista de documentos y los siguientes pasos.")),
+             "summary": "El contacto busca orientación para obtener una preaprobación hipotecaria.",
+             "topics": ("credito hipotecario", "requisitos", "seguimiento")},
+        ),
+    },
+    {
+        "opening": (("inbound", "Hola, busco un departamento en renta. ¿Tienen opciones?"),
+                    ("outbound", "Hola, sí. ¿Qué presupuesto mensual tienes?"),
+                    ("inbound", "Hasta $12,000 al mes."),
+                    ("outbound", "Gracias. Tenemos opciones en ese rango. ¿Cuándo necesitas mudarte?")),
+        "branches": (
+            {"messages": (("inbound", "El próximo mes."),
+                          ("outbound", "Bien, te enviaré las opciones disponibles para esa fecha."),
+                          ("inbound", "Gracias, las reviso."),
+                          ("outbound", "Con gusto. Si alguna te interesa, coordinamos una visita.")),
+             "summary": "El contacto busca renta de hasta $12,000 y desea mudarse el próximo mes.",
+             "topics": ("renta", "presupuesto", "seguimiento")},
+            {"messages": (("inbound", "Aún no tengo fecha; solo estoy comparando."),
+                          ("outbound", "Entendido, te compartiré algunas opciones para que las compares."),
+                          ("inbound", "Perfecto, muchas gracias."),
+                          ("outbound", "Con gusto, quedo pendiente si tienes preguntas.")),
+             "summary": "El contacto compara departamentos en renta y todavía no tiene fecha de mudanza.",
+             "topics": ("renta", "presupuesto", "seguimiento")},
+        ),
+    },
 )
-OUTBOUND_MESSAGES = (
-    "Hola, con gusto te comparto la informacion.",
-    "Claro, podemos agendar una visita esta semana.",
-    "Te envio los detalles de la propiedad para que los revises.",
-    "Quedo atento a tus comentarios.",
-)
-EPISODE_TOPICS = ("disponibilidad", "precio", "seguimiento")
 
 
 def parse_args():
@@ -194,7 +243,10 @@ def make_conversation(contact, connection_id, rng, now):
         hours=rng.randrange(24),
         minutes=rng.randrange(60),
     )
-    count = rng.randint(5, 16)
+    tree = rng.choice(CONVERSATION_TREES)
+    branch = rng.choice(tree["branches"])
+    dialogue = tree["opening"] + branch["messages"]
+    count = len(dialogue)
     conversation_id = uuid.uuid4()
     return {
         "uid": conversation_id,
@@ -211,6 +263,9 @@ def make_conversation(contact, connection_id, rng, now):
         "cat": last_activity - timedelta(hours=4 * (count - 1)),
         "last_activity": last_activity,
         "message_count": count,
+        "dialogue": dialogue,
+        "summary": branch["summary"],
+        "topics": branch["topics"],
         "agent_id": contact["assigned_to"],
     }
 
@@ -233,23 +288,9 @@ def insert_conversations(cursor, conversations):
 def make_messages(conversations, rng):
     messages = []
     for conversation in conversations:
-        for index in range(conversation["message_count"]):
-            inbound = index == 0 or rng.random() < 0.55
-            direction = "inbound" if inbound else "outbound"
-            message_type = rng.choices(
-                ("text", "image", "audio", "document"),
-                weights=(82, 9, 6, 3),
-                k=1,
-            )[0]
-            text = rng.choice(INBOUND_MESSAGES if inbound else OUTBOUND_MESSAGES)
-            if message_type == "image":
-                content = {"caption": text, "media_id": f"fake-{uuid.uuid4().hex}"}
-            elif message_type == "audio":
-                content = {"transcription": text, "media_id": f"fake-{uuid.uuid4().hex}"}
-            elif message_type == "document":
-                content = {"body": text, "filename": "ficha-inmueble-demo.pdf"}
-            else:
-                content = {"body": text}
+        for index, (direction, text) in enumerate(conversation["dialogue"]):
+            message_type = "text"
+            content = {"body": text}
 
             message_at = conversation["last_activity"]
             if index < conversation["message_count"] - 1:
@@ -305,7 +346,7 @@ def make_episodes(conversations, rng):
                 conversation["uid"],
                 window_to - timedelta(days=3),
                 window_to,
-                "Resumen ficticio: el contacto solicito informacion y seguimiento.",
+                conversation["summary"],
                 "demo-faker",
                 rng.randint(100, 3000),
                 window_to,
@@ -314,13 +355,14 @@ def make_episodes(conversations, rng):
     return episodes
 
 
-def insert_episodes(cursor, episodes):
+def insert_episodes(cursor, episodes, conversations):
+    topics = sorted({topic for conversation in conversations for topic in conversation["topics"]})
     cursor.executemany(
         """
         INSERT INTO whatsapp_key_topic (name) VALUES (%s)
         ON CONFLICT (name) DO NOTHING
         """,
-        [(name,) for name in EPISODE_TOPICS],
+        [(name,) for name in topics],
     )
     cursor.executemany(
         """
@@ -331,9 +373,8 @@ def insert_episodes(cursor, episodes):
         """,
         episodes,
     )
-    links = [
-        (episode[0], name) for episode in episodes for name in EPISODE_TOPICS
-    ]
+    topics_by_conversation = {conversation["uid"]: conversation["topics"] for conversation in conversations}
+    links = [(episode[0], name) for episode in episodes for name in topics_by_conversation[episode[1]]]
     cursor.executemany(
         """
         INSERT INTO whatsapp_episode_topic (episode_id, topic_id)
@@ -397,7 +438,7 @@ def main():
             insert_contacts(cursor, contacts)
             insert_conversations(cursor, conversations)
             insert_messages(cursor, messages)
-            insert_episodes(cursor, episodes)
+            insert_episodes(cursor, episodes, conversations)
 
     print(
         f"Datos ficticios agregados: {len(contacts)} contactos, "

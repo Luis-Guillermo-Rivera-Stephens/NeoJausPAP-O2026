@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from strawberry.fastapi import GraphQLRouter
 from agents import Runner
+from agents.exceptions import ModelBehaviorError
 
 from AI.agent import TURN, agent
 from AI.dashboard import CHAT_ID, splice
@@ -158,6 +159,12 @@ async def chat(body: ChatRequest) -> ChatResponse:
     turn = TURN.set(decisions)
     try:
         result = await Runner.run(agent, "\n\n".join(parts))
+    except ModelBehaviorError:
+        print("[AGENT] respuesta del modelo inválida")
+        # No guardar una respuesta fallida como si fuera un hecho en la memoria.
+        reply = "No pude procesar la respuesta del modelo. Intenta enviar tu pregunta de nuevo."
+        memory_mgr.append_message(chat_id, "assistant", reply)
+        return ChatResponse(reply=reply, chat_id=chat_id)
     finally:
         TURN.reset(turn)
         CHAT_ID.reset(token)

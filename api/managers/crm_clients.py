@@ -32,7 +32,16 @@ def list_crm_clients(
         params.append(advisor_id)
     if client_status:
         sql += " AND client_status::text = %s"
-        params.append(client_status)
+        aliases = {
+            "nuevo": "new", "cliente nuevo": "new", "contactado": "contacted",
+            "activo": "active", "cerrado": "closed", "perdido": "lost",
+            "inactivo": "inactive", "archivado": "archived",
+        }
+        status = client_status.strip().lower()
+        status = aliases.get(status, status)
+        if status not in {"new", "contacted", "active", "closed", "lost", "inactive", "archived"}:
+            raise ValueError("clientStatus inválido: usa new, contacted, active, closed, lost, inactive o archived")
+        params.append(status)
     pattern = like_pattern(q)
     if pattern:
         sql += """

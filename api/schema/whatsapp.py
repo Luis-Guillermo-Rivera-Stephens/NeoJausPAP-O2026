@@ -131,6 +131,7 @@ class Message:
 
 @strawberry.type
 class EstadoHit:
+    client_id: strawberry.ID
     source: str
     conversation_id: strawberry.ID
     client_name: str
@@ -247,6 +248,7 @@ def _message_from_row(row: dict) -> Message:
 
 def _estado_from_row(row: dict) -> EstadoHit:
     return EstadoHit(
+        client_id=str(row["client_id"]),
         source=row["source"],
         conversation_id=str(row["conversation_id"]),
         client_name=row["client_name"],
