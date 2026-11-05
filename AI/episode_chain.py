@@ -10,7 +10,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from api.managers import episodes as episodes_mgr
 
-_MODEL = os.getenv("AI_MODEL", "gemini-3.6-flash")
+_MODEL = os.getenv("AI_MODEL_MEDIO") or "gpt-4.1-mini"
 _PROMPT = (
     "Resume los mensajes de WhatsApp en español en 2 o 3 oraciones y extrae de 1 a 5 temas clave "
     "(sustantivos cortos en minúsculas, ej: precio, disponibilidad, visita, credito). "

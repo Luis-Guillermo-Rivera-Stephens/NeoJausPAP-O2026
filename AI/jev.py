@@ -12,6 +12,7 @@ MODEL = "jev-latest"
 INPUT_USD_PER_MILLION = 0.042
 
 ROUTES = ("datos", "dashboard", "estatus", "memoria")
+TIERS = ("mini", "medio", "alto")
 PERIODS = (
     "hoy",
     "ayer",
@@ -64,6 +65,15 @@ def _log_usage(response) -> None:
         f"[JEV] tokens: input={usage.input_tokens} "
         f"output={usage.output_tokens} cost_usd={cost:.8f} model={response.model}"
     )
+
+
+def resolve_tier(route: str | None, picked: str | None) -> str:
+    """Dashboard siempre alto. Si Jev no pasa el umbral, mini."""
+    if route == "dashboard":
+        return "alto"
+    if picked in TIERS:
+        return picked
+    return "mini"
 
 
 def _pick(answer, allowed: tuple[str, ...] | set[str]) -> str | None:
@@ -174,6 +184,14 @@ async def classify(message: str, now: datetime | None = None) -> dict | None:
                     "reporte": "Varias series en una sola gráfica",
                 },
             ),
+            "dificultad": Choice(
+                instructions="Qué tan difícil es responder este mensaje",
+                criteria={
+                    "mini": "Saludo, charla o pregunta trivial, sin datos ni listas",
+                    "medio": "Una consulta de datos, estatus o memoria con un filtro",
+                    "alto": "Varios pasos, varios filtros, comparación o análisis",
+                },
+            ),
         }
         async with AsyncTypeSafeClient(
             model=MODEL,
@@ -200,9 +218,7 @@ async def classify(message: str, now: datetime | None = None) -> dict | None:
             if kind:
                 out["kind"] = kind
                 out["graphic"] = GRAPHIC[kind]
-        if not out:
-            print("[JEV] sin decisiones sobre el umbral")
-            return None
+        out["dificultad"] = resolve_tier(route, _pick(response.choices.get("dificultad"), TIERS))
         print(f"[JEV] {out}")
         return out
     except Exception as error:
@@ -229,6 +245,12 @@ if __name__ == "__main__":
     assert _pick(_Answer("hoy", 0.9), PERIODS) == "hoy"
     assert _pick(_Answer("hoy", 0.84), PERIODS) is None
     assert _pick(_Answer("otro", 0.99), PERIODS) is None
+    assert _pick(_Answer("mini", 0.9), TIERS) == "mini"
+    assert _pick(_Answer("mini", 0.84), TIERS) is None
+    assert resolve_tier("dashboard", "mini") == "alto"
+    assert resolve_tier("datos", "medio") == "medio"
+    assert resolve_tier("datos", None) == "mini"
+    assert resolve_tier(None, None) == "mini"
     rows = [
         {"nickname": "jsalas", "uid": "c0000000-0000-4000-8000-000000000002"},
         {"nickname": "rgomez", "uid": "c0000000-0000-4000-8000-000000000001"},

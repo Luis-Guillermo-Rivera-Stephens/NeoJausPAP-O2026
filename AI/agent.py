@@ -22,7 +22,14 @@ from api.schema.schema import schema
 
 api_key = os.getenv("AI_API_KEY")
 base_url = os.getenv("AI_BASE_URL")
-model_name = os.getenv("AI_MODEL", "gemini-3.6-flash")
+_MODELS = {
+    "mini": os.getenv("AI_MODEL_MINI") or "gpt-4.1-nano",
+    "medio": os.getenv("AI_MODEL_MEDIO") or "gpt-4.1-mini",
+    "alto": os.getenv("AI_MODEL_ALTO") or "gpt-4.1",
+}
+_FALLBACK = os.getenv("AI_MODEL_FALLBACK") or _MODELS["medio"]
+if os.getenv("AI_MODEL"):
+    print("[AGENT] AI_MODEL ya no se usa. Borra esa línea del .env.")
 
 if not api_key:
     raise RuntimeError("Falta AI_API_KEY en el .env")
@@ -224,10 +231,15 @@ def _instructions(_ctx, _agent) -> str:
     return instructions_for(TURN.get())
 
 
+def model_for(tier: str) -> OpenAIChatCompletionsModel:
+    name = _FALLBACK if tier == "fallback" else _MODELS.get(tier, _MODELS["medio"])
+    return OpenAIChatCompletionsModel(model=name, openai_client=client)
+
+
 agent = Agent(
     name="GraphQL Agent",
     instructions=_instructions,
     tools=[call_graphql, read_skill, render_dashboard, ver_dashboard],
-    model=OpenAIChatCompletionsModel(model=model_name, openai_client=client),
+    model=model_for("medio"),
     output_type=AiResponse,
 )

@@ -3,3 +3,4 @@ venv/
 context/
 .cursor 
 __pycache__/
+**/*.log

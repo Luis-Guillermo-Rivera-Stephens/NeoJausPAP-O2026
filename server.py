@@ -16,10 +16,11 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from strawberry.fastapi import GraphQLRouter
-from agents import Runner
+from agents import RunConfig, Runner
 from agents.exceptions import ModelBehaviorError
+from openai import APIConnectionError, APIError, APITimeoutError
 
-from AI.agent import TURN, agent
+from AI.agent import TURN, agent, model_for
 from AI.dashboard import CHAT_ID, splice
 from AI.episode_chain import process_pending
 from AI.jev import advisor_in_text, classify
@@ -158,8 +159,19 @@ async def chat(body: ChatRequest) -> ChatResponse:
     token = CHAT_ID.set(chat_id)
     turn = TURN.set(decisions)
     try:
-        result = await Runner.run(agent, "\n\n".join(parts))
-    except ModelBehaviorError:
+        tier = (decisions or {}).get("dificultad", "mini")
+        chosen = model_for(tier)
+        prompt = "\n\n".join(parts)
+        print(f"[AGENT] model={chosen.model} tier={tier}")
+        try:
+            result = await Runner.run(agent, prompt, run_config=RunConfig(model=chosen))
+        except (APIError, APIConnectionError, APITimeoutError) as error:
+            other = model_for("fallback")
+            if other.model == chosen.model:
+                raise
+            print(f"[AGENT] fallback model={other.model} error={type(error).__name__}")
+            result = await Runner.run(agent, prompt, run_config=RunConfig(model=other))
+    except (ModelBehaviorError, APIError, APIConnectionError, APITimeoutError):
         print("[AGENT] respuesta del modelo inválida")
         # No guardar una respuesta fallida como si fuera un hecho en la memoria.
         reply = "No pude procesar la respuesta del modelo. Intenta enviar tu pregunta de nuevo."
