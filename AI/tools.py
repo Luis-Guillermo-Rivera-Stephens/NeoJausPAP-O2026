@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 
 from agents import function_tool
 import requests
@@ -43,7 +44,8 @@ def call_graphql(query: str) -> str:
         errors = body.get("errors") if isinstance(body, dict) else None
         if errors:
             return "error: " + "; ".join(item.get("message", "") for item in errors)
-        return body
+        # Siempre string JSON: el SDK + structured output fallan menos que con un dict crudo.
+        return json.dumps(body.get("data", body), ensure_ascii=False, default=str)
     except Exception as e:
         print(f"[TOOL] call_graphql error={e}")
         return str(e)

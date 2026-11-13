@@ -13,6 +13,7 @@ from api.managers import advisors as advisors_mgr
 from api.managers import connections as connections_mgr
 from api.managers import conversations as conversations_mgr
 from api.managers import crm_clients as crm_mgr
+from AI.episode_chain import search_topics as search_topics_by_embedding
 from api.managers import episodes as episodes_mgr
 from api.schema.whatsapp import (
     Agency,
@@ -124,12 +125,17 @@ class Query:
         return [_estado_from_row(row) for row in rows]
 
     @strawberry.field
-    def topics(
+    async def topics(
         self,
         q: Optional[str] = None,
         limit: int = 10,
+        min_score: Optional[float] = None,
     ) -> list[KeyTopic]:
-        rows = episodes_mgr.search_topics(q, limit)
+        text = (q or "").strip()
+        if text:
+            rows = await search_topics_by_embedding(text, limit, min_score)
+        else:
+            rows = episodes_mgr.search_topics(limit)
         return [KeyTopic(uid=str(row["uid"]), name=row["name"]) for row in rows]
 
     @strawberry.field

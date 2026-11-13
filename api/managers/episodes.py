@@ -88,18 +88,61 @@ def list_topics(episode_id: str) -> list[dict]:
     )
 
 
-def search_topics(q: Optional[str] = None, limit: int = 10) -> list[dict]:
-    safe_limit = clamp_limit(limit)
-    pattern = like_pattern(q)
-    if pattern:
-        return fetch_all(
-            "SELECT uid, name FROM whatsapp_key_topic WHERE name ILIKE %s ORDER BY name LIMIT %s",
-            (pattern, safe_limit),
-        )
+def search_topics(limit: int = 10) -> list[dict]:
     return fetch_all(
         "SELECT uid, name FROM whatsapp_key_topic ORDER BY name LIMIT %s",
-        (safe_limit,),
+        (clamp_limit(limit),),
     )
+
+
+def list_missing_embeddings(limit: int = 100) -> list[dict]:
+    return fetch_all(
+        """
+        SELECT uid, name
+        FROM whatsapp_key_topic
+        WHERE embedding IS NULL
+        ORDER BY cat, uid
+        LIMIT %s
+        """,
+        (limit,),
+    )
+
+
+def save_embeddings(pairs: list[tuple[str, list[float]]]) -> None:
+    if not pairs:
+        return
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.executemany(
+                "UPDATE whatsapp_key_topic SET embedding = %s WHERE uid = %s",
+                [(vector, uid) for uid, vector in pairs],
+            )
+        conn.commit()
+
+
+def rank_by_embedding(
+    vector: list[float],
+    limit: int = 10,
+    min_score: float | None = None,
+) -> list[dict]:
+    rows = fetch_all(
+        """
+        SELECT uid, name, embedding
+        FROM whatsapp_key_topic
+        WHERE embedding IS NOT NULL
+        """,
+    )
+    scored = []
+    for row in rows:
+        score = sum(a * float(b) for a, b in zip(vector, row["embedding"]))
+        if min_score is not None and score < min_score:
+            continue
+        scored.append((score, row))
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return [
+        {"uid": row["uid"], "name": row["name"]}
+        for _, row in scored[: clamp_limit(limit)]
+    ]
 
 
 def list_by_topic(topic_id: str, limit: int = 10) -> list[dict]:

@@ -11,6 +11,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 from api.managers import episodes as episodes_mgr
 
 _MODEL = os.getenv("AI_MODEL_MEDIO") or "gpt-4.1-mini"
+_EMBED_MODEL = "text-embedding-3-small"
 _PROMPT = (
     "Resume los mensajes de WhatsApp en español en 2 o 3 oraciones y extrae de 1 a 5 temas clave "
     "(sustantivos cortos en minúsculas, ej: precio, disponibilidad, visita, credito). "
@@ -54,6 +55,30 @@ async def extract_episode(messages: list[dict], current_summary: str | None = No
     )
     raw = resp.choices[0].message.content or "{}"
     return EpisodeExtract.model_validate_json(raw)
+
+
+async def embed_texts(texts: list[str]) -> list[list[float]]:
+    resp = await _get_client().embeddings.create(model=_EMBED_MODEL, input=texts)
+    ordered = sorted(resp.data, key=lambda item: item.index)
+    return [item.embedding for item in ordered]
+
+
+async def fill_missing_embeddings() -> int:
+    rows = episodes_mgr.list_missing_embeddings()
+    if not rows:
+        return 0
+    vectors = await embed_texts([row["name"] for row in rows])
+    if len(vectors) != len(rows):
+        raise RuntimeError(f"embeddings {len(vectors)} != topics {len(rows)}")
+    episodes_mgr.save_embeddings(
+        [(str(row["uid"]), vector) for row, vector in zip(rows, vectors)]
+    )
+    return len(rows)
+
+
+async def search_topics(q: str, limit: int = 10, min_score: float | None = None) -> list[dict]:
+    vector = (await embed_texts([q.strip()]))[0]
+    return episodes_mgr.rank_by_embedding(vector, limit, min_score)
 
 
 async def process_pending() -> int:

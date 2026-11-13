@@ -22,7 +22,7 @@ from openai import APIConnectionError, APIError, APITimeoutError
 
 from AI.agent import TURN, agent, model_for
 from AI.dashboard import CHAT_ID, splice
-from AI.episode_chain import process_pending
+from AI.episode_chain import fill_missing_embeddings, process_pending
 from AI.jev import advisor_in_text, classify
 from api.db.cache import take_dashboards
 from api.managers import memory as memory_mgr
@@ -46,13 +46,27 @@ async def _episode_loop() -> None:
         await asyncio.sleep(300)
 
 
+async def _embed_loop() -> None:
+    while True:
+        try:
+            done = await fill_missing_embeddings()
+            print(f"[TOPICS] embeddings: {done}")
+        except Exception as error:
+            print(f"[TOPICS] loop error: {error}")
+        await asyncio.sleep(300)
+
+
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
-    task = asyncio.create_task(_episode_loop())
+    tasks = (
+        asyncio.create_task(_episode_loop()),
+        asyncio.create_task(_embed_loop()),
+    )
     try:
         yield
     finally:
-        task.cancel()
+        for task in tasks:
+            task.cancel()
 
 
 app = FastAPI(title="PAP GraphQL + Agent", lifespan=_lifespan)
@@ -163,16 +177,24 @@ async def chat(body: ChatRequest) -> ChatResponse:
         chosen = model_for(tier)
         prompt = "\n\n".join(parts)
         print(f"[AGENT] model={chosen.model} tier={tier}")
+
+        async def _run(model):
+            return await Runner.run(agent, prompt, run_config=RunConfig(model=model))
+
         try:
-            result = await Runner.run(agent, prompt, run_config=RunConfig(model=chosen))
+            result = await _run(chosen)
+        except ModelBehaviorError as error:
+            # gpt-*-mini a veces rompe el JSON del output_type; un reintento suele bastar.
+            print(f"[AGENT] reintento tras {type(error).__name__}: {error}")
+            result = await _run(chosen)
         except (APIError, APIConnectionError, APITimeoutError) as error:
             other = model_for("fallback")
             if other.model == chosen.model:
                 raise
             print(f"[AGENT] fallback model={other.model} error={type(error).__name__}")
-            result = await Runner.run(agent, prompt, run_config=RunConfig(model=other))
-    except (ModelBehaviorError, APIError, APIConnectionError, APITimeoutError):
-        print("[AGENT] respuesta del modelo inválida")
+            result = await _run(other)
+    except (ModelBehaviorError, APIError, APIConnectionError, APITimeoutError) as error:
+        print(f"[AGENT] respuesta del modelo inválida: {type(error).__name__}: {error}")
         # No guardar una respuesta fallida como si fuera un hecho en la memoria.
         reply = "No pude procesar la respuesta del modelo. Intenta enviar tu pregunta de nuevo."
         memory_mgr.append_message(chat_id, "assistant", reply)
