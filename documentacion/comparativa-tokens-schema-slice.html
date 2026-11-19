@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Comparativa de tokens por turno — schema slice</title>
+<style>
+  @page { size: A4; margin: 14mm 13mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", Calibri, sans-serif; color: #1a1a1a; font-size: 11pt; line-height: 1.35; margin: 0; }
+  h1 { font-size: 17pt; margin: 0 0 4px; }
+  h2 { font-size: 12.5pt; margin: 14px 0 6px; }
+  p { margin: 6px 0; }
+  .meta { color: #444; font-size: 9.5pt; margin-bottom: 8px; }
+  .kpis { display: flex; gap: 8px; margin: 10px 0 2px; }
+  .kpi { flex: 1; border: 1px solid #ccc; padding: 7px 9px; }
+  .kpi b { display: block; font-size: 15pt; }
+  .kpi span { font-size: 9pt; color: #333; }
+  table { width: 100%; border-collapse: collapse; margin: 4px 0; font-size: 10pt; }
+  th, td { border-bottom: 1px solid #ddd; text-align: left; padding: 3px 5px; vertical-align: middle; }
+  th { font-size: 9pt; color: #333; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .bar { height: 8px; background: #e6e6e6; }
+  .bar > i { display: block; height: 8px; background: #2f6f4e; }
+  .bar.before > i { background: #555; }
+  .bar.warn > i { background: #8a5a00; }
+  caption { caption-side: bottom; text-align: left; font-size: 8.5pt; color: #555; padding-top: 3px; }
+  .note { font-size: 9pt; color: #222; border: 1px solid #ccc; padding: 7px 9px; margin-top: 12px; }
+</style>
+</head>
+<body>
+  <h1>Tokens por turno, antes y ahora</h1>
+  <p class="meta">PAP /chat · 18 de noviembre de 2026<br>
+  Un turno es un POST /chat: la suma de todas las llamadas al modelo hasta dar la respuesta (campo total del log [AGENT] tokens). No incluye Jev.</p>
+
+  <p>En los logs hay 3 turnos de antes (SDL completo) y 4 de la prueba del 13 nov. De esos 4, tres usaron el catálogo por ruta y uno no, porque Jev no devolvió ruta.</p>
+
+  <div class="kpis">
+    <div class="kpi"><b>10 952</b><span>Máximo antes, tokens de un turno</span></div>
+    <div class="kpi"><b>9 275</b><span>Máximo ahora, turnos con slice</span></div>
+    <div class="kpi"><b>8 472 → 5 654</b><span>Media del turno, −33%</span></div>
+  </div>
+
+  <h2>Percentiles del turno (input + output)</h2>
+  <table>
+    <thead>
+      <tr><th></th><th class="num">Antes (n=3)</th><th></th><th class="num">Ahora con slice (n=3)</th><th></th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>p50</td><td class="num">9 325</td>
+        <td><div class="bar before"><i style="width:88%"></i></div></td>
+        <td class="num">5 559</td>
+        <td><div class="bar"><i style="width:52%"></i></div></td>
+      </tr>
+      <tr>
+        <td>media</td><td class="num">8 472</td>
+        <td><div class="bar before"><i style="width:80%"></i></div></td>
+        <td class="num">5 654</td>
+        <td><div class="bar"><i style="width:53%"></i></div></td>
+      </tr>
+      <tr>
+        <td>p90</td><td class="num">10 627</td>
+        <td><div class="bar before"><i style="width:100%"></i></div></td>
+        <td class="num">8 532</td>
+        <td><div class="bar"><i style="width:80%"></i></div></td>
+      </tr>
+      <tr>
+        <td>máximo</td><td class="num">10 952</td>
+        <td><div class="bar before"><i style="width:100%"></i></div></td>
+        <td class="num">9 275</td>
+        <td><div class="bar"><i style="width:87%"></i></div></td>
+      </tr>
+    </tbody>
+    <caption>Escala: 100% = 10 952 tokens. p90 interpolado, posición 1+(n−1)×0.9. Con 3 turnos, p90 queda cerca del máximo.</caption>
+  </table>
+
+  <h2>Cada turno encontrado</h2>
+  <table>
+    <thead>
+      <tr><th>Cuándo</th><th>Pregunta</th><th class="num">Requests</th><th class="num">Input</th><th class="num">Output</th><th class="num">Turno</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Antes</td><td>hola</td><td class="num">1</td><td class="num">5 095</td><td class="num">45</td><td class="num">5 140</td></tr>
+      <tr><td>Antes</td><td>gráfico de asesores</td><td class="num">2</td><td class="num">9 132</td><td class="num">193</td><td class="num">9 325</td></tr>
+      <tr><td>Antes</td><td>conversaciones de precios</td><td class="num">2</td><td class="num">10 747</td><td class="num">205</td><td class="num">10 952</td></tr>
+      <tr><td>Ahora, sin slice</td><td>KPI inbound este mes</td><td class="num">2</td><td class="num">12 281</td><td class="num">140</td><td class="num">12 421</td></tr>
+      <tr><td>Ahora</td><td>cliente reciente de rgomez</td><td class="num">3</td><td class="num">9 019</td><td class="num">256</td><td class="num">9 275</td></tr>
+      <tr><td>Ahora</td><td>seguimiento de Ana Ortiz</td><td class="num">2</td><td class="num">5 437</td><td class="num">122</td><td class="num">5 559</td></tr>
+      <tr><td>Ahora</td><td>qué pregunté antes</td><td class="num">1</td><td class="num">2 045</td><td class="num">83</td><td class="num">2 128</td></tr>
+    </tbody>
+    <caption>Turno = input + output de todas las llamadas al modelo de esa respuesta. Fuente: server-stdout.log y el log de uvicorn de la prueba.</caption>
+  </table>
+
+  <h2>Por qué baja el turno</h2>
+  <table>
+    <thead><tr><th>Schema en el prompt</th><th class="num">Caracteres</th><th></th></tr></thead>
+    <tbody>
+      <tr><td>SDL completo (antes, y ahora si no hay ruta)</td><td class="num">8 775</td><td><div class="bar before"><i style="width:100%"></i></div></td></tr>
+      <tr><td>datos</td><td class="num">1 261</td><td><div class="bar"><i style="width:14%"></i></div></td></tr>
+      <tr><td>dashboard / kpi</td><td class="num">636</td><td><div class="bar"><i style="width:7%"></i></div></td></tr>
+      <tr><td>estatus</td><td class="num">597</td><td><div class="bar"><i style="width:7%"></i></div></td></tr>
+      <tr><td>memoria</td><td class="num">103</td><td><div class="bar"><i style="width:2%"></i></div></td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <b>Lectura.</b> Antes, un turno llegaba a 10 952 tokens; la media era 8 472. Con slice, la media del turno bajó a 5 654 y el máximo de esa muestra a 9 275. El turno de KPI llegó a 12 421 porque Jev no clasificó la ruta y se envió el schema completo: ese caso no entra en el −33%. No es el mismo set de preguntas, y en los logs no hay más turnos con este conteo.
+  </div>
+</body>
+</html>

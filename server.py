@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from strawberry.fastapi import GraphQLRouter
-from agents import RunConfig, Runner
+from agents import ModelSettings, RunConfig, Runner
 from agents.exceptions import ModelBehaviorError
 from openai import APIConnectionError, APIError, APITimeoutError
 
@@ -178,8 +178,16 @@ async def chat(body: ChatRequest) -> ChatResponse:
         prompt = "\n\n".join(parts)
         print(f"[AGENT] model={chosen.model} tier={tier}")
 
+        # Ruta dashboard: el modelo inventaba {{dashboard:N}} sin tool. Forzar render_dashboard.
+        force_dash = (decisions or {}).get("ruta") == "dashboard"
+        settings = ModelSettings(tool_choice="render_dashboard") if force_dash else None
+
         async def _run(model):
-            return await Runner.run(agent, prompt, run_config=RunConfig(model=model))
+            return await Runner.run(
+                agent,
+                prompt,
+                run_config=RunConfig(model=model, model_settings=settings),
+            )
 
         try:
             result = await _run(chosen)

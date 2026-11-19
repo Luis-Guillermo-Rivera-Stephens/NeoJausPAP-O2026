@@ -404,13 +404,14 @@ _SLOT = re.compile(r"\{\{dashboard(?::(\d+))?\}\}")
 def splice(text: str, parts: list[str]) -> str:
     """Cambia {{dashboard:N}} por el Markdown N. Sin marcas, el texto va antes y los bloques después."""
     if not parts:
-        return text
+        # Sin gráfica guardada: no dejes el marcador crudo en el chat.
+        return _SLOT.sub("", text or "").strip()
     def _one(match: re.Match) -> str:
         raw = match.group(1)
         index = int(raw) - 1 if raw else 0
         if 0 <= index < len(parts):
             return "\n\n" + parts[index].strip() + "\n"
-        return match.group(0)
+        return ""
     if _SLOT.search(text or ""):
         return _SLOT.sub(_one, text)
     body = "\n\n".join(part.strip() for part in parts)

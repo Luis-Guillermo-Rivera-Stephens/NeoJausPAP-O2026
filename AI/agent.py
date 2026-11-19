@@ -16,9 +16,9 @@ from agents import (
 )
 from openai import AsyncOpenAI
 
+from AI.schema_slice import schema_for_prompt
 from AI.tools import call_graphql, read_skill, render_dashboard, ver_dashboard
 from AI.output import AiResponse
-from api.schema.schema import schema
 
 api_key = os.getenv("AI_API_KEY")
 base_url = os.getenv("AI_BASE_URL")
@@ -186,7 +186,7 @@ _IDENTITY_CATEGORY_RULES = """\
 
 
 def instructions_for(decisions: dict | None) -> str:
-    tail = "Schema GraphQL exacto:\n" + schema.as_str()
+    tail = schema_for_prompt(decisions)
     if not decisions or "ruta" not in decisions:
         text = _RULES
         if decisions and decisions.get("since"):
@@ -203,7 +203,7 @@ def instructions_for(decisions: dict | None) -> str:
                 "llama `{ advisors { uid nickname } }`, toma ese uid y pásalo en advisorId. Si el token ya está, reutilízalo y no llames advisors.",
                 "usa el advisorId del mensaje. No llames advisors.",
             )
-        return text + "\n" + _IDENTITY_CATEGORY_RULES + "\n" + _TOPIC_RULES + "\n" + schema.as_str()
+        return text + "\n" + _IDENTITY_CATEGORY_RULES + "\n" + _TOPIC_RULES + "\n" + tail
     route = decisions["ruta"]
     parts = [_CORE, _IDENTITY_CATEGORY_RULES, decisions.get("since") and _DATES_DONE or _DATES]
     if decisions.get("advisor_id"):
