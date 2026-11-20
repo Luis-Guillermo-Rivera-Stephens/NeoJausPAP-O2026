@@ -359,6 +359,27 @@ button:hover { background: #185538; }
 button:active { transform: scale(0.97); }
 button:disabled { opacity: 0.5; cursor: progress; }
 
+#voice-record,
+.voice-play {
+  width: auto;
+  padding: 0 0.65rem;
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+#voice-record[hidden],
+.voice-status:empty { display: none; }
+
+.voice-play { margin-top: 0.5rem; }
+
+.voice-status {
+  margin: 0;
+  padding: 0 0.75rem 0.5rem;
+  background: var(--bar);
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
 .sr {
   position: absolute;
   width: 1px;

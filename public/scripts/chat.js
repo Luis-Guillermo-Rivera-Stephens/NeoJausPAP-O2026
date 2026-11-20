@@ -2,7 +2,144 @@ const log = document.getElementById("log");
 const empty = document.getElementById("empty");
 const form = document.getElementById("composer");
 const input = document.getElementById("input");
-const send = form.querySelector("button");
+const send = form.querySelector('button[type="submit"]');
+const record = document.getElementById("voice-record");
+const voiceStatus = document.getElementById("voice-status");
+const audioFormats = ["audio/webm", "audio/ogg", "audio/mp4"];
+const recordingFormat = navigator.mediaDevices?.getUserMedia && window.MediaRecorder
+  ? audioFormats.find((format) => MediaRecorder.isTypeSupported(format))
+  : null;
+let recording = null;
+let playback = null;
+
+function stopPlayback() {
+  if (!playback) return;
+  playback.button.textContent = "Escuchar";
+  playback = null;
+  window.speechSynthesis.cancel();
+}
+
+function addPlayback(node) {
+  if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
+  const prose = node.cloneNode(true);
+  prose.querySelectorAll("table, pre, .mermaid, .chart-pending, canvas, svg, img").forEach((item) => item.remove());
+  prose.querySelectorAll("p, li, h1, h2, h3, h4, h5, h6, br").forEach((item) => item.after(" "));
+  const text = prose.textContent.trim();
+  if (!text) return;
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "voice-play";
+  button.textContent = "Escuchar";
+  button.addEventListener("click", () => {
+    const wasPlaying = playback?.button === button;
+    stopPlayback();
+    if (wasPlaying || recording) return;
+    const speech = new SpeechSynthesisUtterance(text);
+    speech.lang = "es-MX";
+    playback = { button, speech };
+    button.textContent = "Detener";
+    const finish = () => {
+      if (playback?.speech !== speech) return;
+      button.textContent = "Escuchar";
+      playback = null;
+    };
+    speech.onend = finish;
+    speech.onerror = finish;
+    window.speechSynthesis.speak(speech);
+  });
+  node.append(button);
+}
+
+function cancelRecording() {
+  const session = recording;
+  if (!session) return;
+  recording = null;
+  clearTimeout(session.timer);
+  session.controller.abort();
+  if (session.recorder?.state === "recording") session.recorder.stop();
+  session.stream?.getTracks().forEach((track) => track.stop());
+  record.disabled = false;
+  record.textContent = "Grabar voz";
+  voiceStatus.textContent = "";
+}
+
+if (recordingFormat) {
+  record.hidden = false;
+  record.addEventListener("click", async () => {
+    if (recording?.recorder?.state === "recording") {
+      recording.recorder.stop();
+      return;
+    }
+    if (recording || send.disabled) return;
+    stopPlayback();
+    const session = { controller: new AbortController() };
+    recording = session;
+    record.disabled = true;
+    voiceStatus.textContent = "Esperando permiso del micrófono…";
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (recording !== session) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      session.stream = stream;
+      const recorder = new MediaRecorder(stream, { mimeType: recordingFormat });
+      session.recorder = recorder;
+      const chunks = [];
+      recorder.ondataavailable = ({ data }) => { if (data.size) chunks.push(data); };
+      recorder.onerror = () => {
+        if (recording !== session) return;
+        cancelRecording();
+        voiceStatus.textContent = "No se pudo grabar. Intenta otra vez.";
+      };
+      recorder.onstop = async () => {
+        if (recording !== session) return;
+        clearTimeout(session.timer);
+        stream.getTracks().forEach((track) => track.stop());
+        record.disabled = true;
+        record.textContent = "Grabar voz";
+        voiceStatus.textContent = "Transcribiendo…";
+        let status;
+        try {
+          const audio = new Blob(chunks, { type: recorder.mimeType || recordingFormat });
+          if (!audio.size) throw new Error("La grabación está vacía.");
+          const response = await fetch("/voice/transcribe", {
+            method: "POST",
+            body: audio,
+            signal: session.controller.signal,
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.detail || "No se pudo transcribir.");
+          if (recording !== session) return;
+          const existing = input.value.trim();
+          input.value = existing ? existing + " " + result.text : result.text;
+          input.dispatchEvent(new Event("input"));
+          input.focus();
+          status = "Revisa la pregunta antes de enviarla.";
+        } catch (error) {
+          status = error.message || "No se pudo transcribir.";
+        } finally {
+          if (recording === session) {
+            cancelRecording();
+            voiceStatus.textContent = status || "";
+          }
+        }
+      };
+      recorder.start();
+      session.timer = setTimeout(() => {
+        if (recorder.state === "recording") recorder.stop();
+      }, 60000);
+      record.disabled = false;
+      record.textContent = "Detener grabación";
+      voiceStatus.textContent = "Grabando (máximo 60 segundos)…";
+    } catch {
+      if (recording !== session) return;
+      cancelRecording();
+      voiceStatus.textContent = "No se pudo acceder al micrófono. Revisa los permisos.";
+    }
+  });
+}
 const chatList = document.getElementById("chat-list");
 const newChat = document.getElementById("new-chat");
 const chatTitle = document.getElementById("chat-title");
@@ -97,7 +234,9 @@ function textNode(value) {
 function typingNode() {
   const note = document.createElement("p");
   note.className = "pending";
-  note.textContent = "Respondiendo";
+  note.textContent = "Lleva pensando 0 s";
+  note.setAttribute("role", "timer");
+  note.setAttribute("aria-live", "off");
   return note;
 }
 
@@ -278,6 +417,7 @@ async function renderReply(markdown, at, options) {
   const node = document.createElement("div");
   node.className = "md";
   node.innerHTML = marked.parse(markdown);
+  addPlayback(node);
   paintBars(node);
   const article = addMessage("assistant", node, at, options);
   paintCharts(node);
@@ -295,6 +435,9 @@ function paintChat(message, options) {
 }
 
 function clearLog() {
+  stopPlayback();
+  cancelRecording();
+  voiceStatus.textContent = "";
   log.querySelectorAll(".msg").forEach((node) => node.remove());
   empty.hidden = false;
   historyHasMore = false;
@@ -386,7 +529,7 @@ function startNewChat() {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const message = input.value.trim();
-  if (!message || send.disabled) return;
+  if (!message || send.disabled || recording) return;
 
   addMessage("user", textNode(message));
   input.value = "";
@@ -394,7 +537,13 @@ form.addEventListener("submit", async (event) => {
   send.disabled = true;
   log.setAttribute("aria-busy", "true");
 
-  const pending = addMessage("assistant", typingNode());
+  const thinking = typingNode();
+  const pending = addMessage("assistant", thinking);
+  const startedAt = performance.now();
+  const thinkingTimer = setInterval(() => {
+    const seconds = Math.floor((performance.now() - startedAt) / 1000);
+    thinking.textContent = `Lleva pensando ${seconds} s`;
+  }, 1000);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 120000);
 
@@ -409,6 +558,7 @@ form.addEventListener("submit", async (event) => {
       throw new Error(`El servidor respondió ${response.status}. Vuelve a intentar.`);
     }
     const data = await response.json();
+    clearInterval(thinkingTimer);
     pending.remove();
     await renderReply(data.reply || "");
     if (!currentId && data.chat_id) {
@@ -434,6 +584,7 @@ form.addEventListener("submit", async (event) => {
       textNode(timedOut ? "La respuesta tardó más de 2 minutos. Vuelve a enviarla." : error.message),
     );
   } finally {
+    clearInterval(thinkingTimer);
     clearTimeout(timer);
     send.disabled = false;
     log.removeAttribute("aria-busy");

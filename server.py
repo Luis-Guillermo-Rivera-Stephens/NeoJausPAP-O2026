@@ -1,4 +1,5 @@
 import asyncio
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -11,13 +12,14 @@ load_dotenv(Path(__file__).resolve().parent / ".env")
 
 from api.db.db import check_connection
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from openai import AsyncOpenAI, OpenAIError
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from strawberry.fastapi import GraphQLRouter
 from agents import Runner
-from agents.exceptions import ModelBehaviorError
+from agents.exceptions import MaxTurnsExceeded, ModelBehaviorError
 
 from AI.agent import TURN, agent
 from AI.dashboard import CHAT_ID, splice
@@ -115,6 +117,42 @@ async def get_chats(limit: int = 20, before: str | None = None):
     return memory_mgr.list_chats(limit, _parse_before(before))
 
 
+@app.post("/voice/transcribe")
+async def transcribe_voice(request: Request):
+    formats = {"audio/webm": "webm", "audio/ogg": "ogg", "audio/mp4": "mp4"}
+    media_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    extension = formats.get(media_type)
+    if not extension:
+        raise HTTPException(415, "Formato de audio no compatible.")
+
+    audio = bytearray()
+    async for chunk in request.stream():
+        if len(audio) + len(chunk) > 5 * 1024 * 1024:
+            raise HTTPException(413, "La grabación supera el límite de 5 MB.")
+        audio.extend(chunk)
+    if not audio:
+        raise HTTPException(400, "La grabación está vacía.")
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    shared_key = os.getenv("AI_API_KEY", "").strip()
+    if not api_key and shared_key.startswith("sk-"):
+        api_key = shared_key
+    if not api_key:
+        raise HTTPException(503, "La transcripción de voz no está configurada.")
+
+    try:
+        async with AsyncOpenAI(api_key=api_key, timeout=30, max_retries=0) as client:
+            transcript = await client.audio.transcriptions.create(
+                model="gpt-4o-mini-transcribe",
+                file=(f"pregunta.{extension}", bytes(audio), media_type),
+                language="es",
+            )
+    except OpenAIError as exc:
+        raise HTTPException(502, "No se pudo transcribir el audio. Intenta otra vez.") from exc
+    if not transcript.text.strip():
+        raise HTTPException(422, "No se detectó voz. Intenta grabar otra vez.")
+    return {"text": transcript.text.strip()}
+
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat(body: ChatRequest) -> ChatResponse:
     if body.chat_id:
@@ -159,6 +197,14 @@ async def chat(body: ChatRequest) -> ChatResponse:
     turn = TURN.set(decisions)
     try:
         result = await Runner.run(agent, "\n\n".join(parts))
+    except MaxTurnsExceeded:
+        try:
+            take_dashboards(chat_id)
+        except Exception as error:
+            print(f"[AGENT] dashboard redis error={error}")
+        reply = "No pude completar la consulta en un solo intento. Prueba con menos temas o un filtro más específico."
+        memory_mgr.append_message(chat_id, "assistant", reply)
+        return ChatResponse(reply=reply, chat_id=chat_id)
     except ModelBehaviorError:
         print("[AGENT] respuesta del modelo inválida")
         # No guardar una respuesta fallida como si fuera un hecho en la memoria.
