@@ -11,6 +11,81 @@ const recordingFormat = navigator.mediaDevices?.getUserMedia && window.MediaReco
   : null;
 let recording = null;
 let playback = null;
+const conversationButton = document.getElementById("voice-conversation");
+let conversation = null;
+
+function stopConversation() {
+  conversation = null;
+  conversationButton.textContent = "Iniciar conversación";
+  conversationButton.setAttribute("aria-pressed", "false");
+  input.readOnly = false;
+  cancelRecording();
+  stopPlayback();
+  voiceStatus.textContent = "";
+}
+
+function listenForTurn() {
+  if (!conversation) return;
+  voiceStatus.textContent = "Escuchando… Haz una pausa para enviar tu pregunta.";
+  record.click();
+}
+
+if (recordingFormat && window.AudioContext && window.speechSynthesis) {
+  conversationButton.hidden = false;
+  conversationButton.addEventListener("click", () => {
+    if (conversation) {
+      stopConversation();
+      return;
+    }
+    if (recording || send.disabled) return;
+    if (input.value.trim()) {
+      voiceStatus.textContent = "Envía o borra el borrador antes de iniciar la conversación.";
+      return;
+    }
+    conversation = {};
+    input.readOnly = true;
+    conversationButton.textContent = "Terminar conversación";
+    conversationButton.setAttribute("aria-pressed", "true");
+    listenForTurn();
+  });
+}
+
+function detectTurnEnd(session) {
+  const context = new AudioContext();
+  session.context = context;
+  const analyser = context.createAnalyser();
+  analyser.fftSize = 2048;
+  context.createMediaStreamSource(session.stream).connect(analyser);
+  const samples = new Float32Array(analyser.fftSize);
+  let speechStarted = false;
+  let voicedFrames = 0;
+  let lastVoice = performance.now();
+  const began = lastVoice;
+  session.silenceTimer = setInterval(() => {
+    analyser.getFloatTimeDomainData(samples);
+    const energy = Math.sqrt(samples.reduce((sum, value) => sum + value * value, 0) / samples.length);
+    const now = performance.now();
+    if (energy > 0.02) {
+      voicedFrames += 1;
+      if (voicedFrames >= 3) speechStarted = true;
+      lastVoice = now;
+    } else {
+      voicedFrames = 0;
+    }
+    if (speechStarted && now - lastVoice > 1500) session.recorder.stop();
+    else if (!speechStarted && now - began > 20000) {
+      stopConversation();
+      voiceStatus.textContent = "Conversación detenida por falta de voz.";
+    }
+  }, 100);
+}
+
+function releaseRecording(session) {
+  clearTimeout(session.timer);
+  clearInterval(session.silenceTimer);
+  session.context?.close().catch(() => {});
+  session.stream?.getTracks().forEach((track) => track.stop());
+}
 
 function stopPlayback() {
   if (!playback) return;
@@ -34,6 +109,7 @@ function addPlayback(node) {
   button.addEventListener("click", () => {
     const wasPlaying = playback?.button === button;
     stopPlayback();
+    if (wasPlaying && conversation) stopConversation();
     if (wasPlaying || recording) return;
     const speech = new SpeechSynthesisUtterance(text);
     speech.lang = "es-MX";
@@ -43,9 +119,14 @@ function addPlayback(node) {
       if (playback?.speech !== speech) return;
       button.textContent = "Escuchar";
       playback = null;
+      if (conversation) listenForTurn();
     };
     speech.onend = finish;
-    speech.onerror = finish;
+    speech.onerror = () => {
+      if (playback?.speech !== speech) return;
+      stopConversation();
+      voiceStatus.textContent = "No se pudo reproducir la respuesta.";
+    };
     window.speechSynthesis.speak(speech);
   });
   node.append(button);
@@ -55,7 +136,7 @@ function cancelRecording() {
   const session = recording;
   if (!session) return;
   recording = null;
-  clearTimeout(session.timer);
+  releaseRecording(session);
   session.controller.abort();
   if (session.recorder?.state === "recording") session.recorder.stop();
   session.stream?.getTracks().forEach((track) => track.stop());
@@ -90,17 +171,17 @@ if (recordingFormat) {
       recorder.ondataavailable = ({ data }) => { if (data.size) chunks.push(data); };
       recorder.onerror = () => {
         if (recording !== session) return;
-        cancelRecording();
+        stopConversation();
         voiceStatus.textContent = "No se pudo grabar. Intenta otra vez.";
       };
       recorder.onstop = async () => {
         if (recording !== session) return;
-        clearTimeout(session.timer);
-        stream.getTracks().forEach((track) => track.stop());
+        releaseRecording(session);
         record.disabled = true;
         record.textContent = "Grabar voz";
         voiceStatus.textContent = "Transcribiendo…";
         let status;
+        let transcribed = false;
         try {
           const audio = new Blob(chunks, { type: recorder.mimeType || recordingFormat });
           if (!audio.size) throw new Error("La grabación está vacía.");
@@ -117,25 +198,36 @@ if (recordingFormat) {
           input.dispatchEvent(new Event("input"));
           input.focus();
           status = "Revisa la pregunta antes de enviarla.";
+          transcribed = true;
         } catch (error) {
           status = error.message || "No se pudo transcribir.";
         } finally {
           if (recording === session) {
             cancelRecording();
             voiceStatus.textContent = status || "";
+            if (conversation && transcribed) {
+              voiceStatus.textContent = "Procesando…";
+              form.requestSubmit();
+            } else if (conversation) {
+              stopConversation();
+              voiceStatus.textContent = status || "No se pudo transcribir.";
+            }
           }
         }
       };
       recorder.start();
+      if (conversation) detectTurnEnd(session);
       session.timer = setTimeout(() => {
         if (recorder.state === "recording") recorder.stop();
       }, 60000);
       record.disabled = false;
       record.textContent = "Detener grabación";
-      voiceStatus.textContent = "Grabando (máximo 60 segundos)…";
+      voiceStatus.textContent = conversation
+        ? "Escuchando… Haz una pausa para enviar tu pregunta."
+        : "Grabando (máximo 60 segundos)…";
     } catch {
       if (recording !== session) return;
-      cancelRecording();
+      stopConversation();
       voiceStatus.textContent = "No se pudo acceder al micrófono. Revisa los permisos.";
     }
   });
@@ -435,6 +527,7 @@ function paintChat(message, options) {
 }
 
 function clearLog() {
+  stopConversation();
   stopPlayback();
   cancelRecording();
   voiceStatus.textContent = "";
@@ -530,6 +623,8 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const message = input.value.trim();
   if (!message || send.disabled || recording) return;
+  const voiceTurn = conversation;
+  let replyArticle = null;
 
   addMessage("user", textNode(message));
   input.value = "";
@@ -560,7 +655,7 @@ form.addEventListener("submit", async (event) => {
     const data = await response.json();
     clearInterval(thinkingTimer);
     pending.remove();
-    await renderReply(data.reply || "");
+    replyArticle = await renderReply(data.reply || "");
     if (!currentId && data.chat_id) {
       const chat = {
         uid: data.chat_id,
@@ -577,6 +672,7 @@ form.addEventListener("submit", async (event) => {
       if (button) button.textContent = data.title;
     }
   } catch (error) {
+    if (voiceTurn && conversation === voiceTurn) stopConversation();
     pending.remove();
     const timedOut = error.name === "AbortError";
     addMessage(
@@ -589,6 +685,15 @@ form.addEventListener("submit", async (event) => {
     send.disabled = false;
     log.removeAttribute("aria-busy");
     input.focus();
+    if (voiceTurn && conversation === voiceTurn && replyArticle) {
+      const playButton = replyArticle.querySelector(".voice-play");
+      if (playButton) {
+        voiceStatus.textContent = "Hablando…";
+        playButton.click();
+      } else {
+        listenForTurn();
+      }
+    }
   }
 });
 

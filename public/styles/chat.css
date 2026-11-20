@@ -311,6 +311,7 @@ body {
 
 .composer {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   align-items: flex-end;
   padding: 0.65rem 0.75rem 0.8rem;
@@ -320,6 +321,7 @@ body {
 
 textarea {
   flex: 1;
+  min-width: 10rem;
   width: 100%;
   resize: none;
   max-height: 8rem;
@@ -360,6 +362,7 @@ button:active { transform: scale(0.97); }
 button:disabled { opacity: 0.5; cursor: progress; }
 
 #voice-record,
+#voice-conversation,
 .voice-play {
   width: auto;
   padding: 0 0.65rem;
@@ -368,6 +371,7 @@ button:disabled { opacity: 0.5; cursor: progress; }
 }
 
 #voice-record[hidden],
+#voice-conversation[hidden],
 .voice-status:empty { display: none; }
 
 .voice-play { margin-top: 0.5rem; }
