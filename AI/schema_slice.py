@@ -1,4 +1,4 @@
-"""Catálogo GraphQL minificado por ruta de Jev. Sin ruta: SDL completo."""
+"""Catálogo GraphQL minificado por ruta de Jev. Sin ruta: catch-all, no SDL completo."""
 
 _FILTERS = (
     "filtros: since until agencyId connectionId clientId advisorId "
@@ -63,7 +63,7 @@ _CRM = (
     "agency { uid isActive } assignedTo { uid nickname } }"
 )
 _TOPICS = (
-    "topics(q, limit, minScore): [KeyTopic { uid name episodes(limit) { "
+    "topics(q, limit<=5, minScore): [KeyTopic { uid name episodes(limit<=3) { "
     "uid summary windowFrom windowTo conversation { uid conversationCategory "
     "client { uid firstName firstLastName preferredName clientStatus primaryPhone } } } }]"
 )
@@ -101,6 +101,9 @@ _ROOT = {
     "memoria": _MEMORIA,
 }
 
+# Sin ruta conocida: bastante para no caer al SDL de 8k+.
+_CATCH_ALL = "\n".join((_DATOS, _ESTATUS, _COUNTS, _MEMORIA))
+
 
 def _body(decisions: dict) -> str:
     route = decisions["ruta"]
@@ -111,15 +114,15 @@ def _body(decisions: dict) -> str:
 
 
 def schema_for_prompt(decisions: dict | None) -> str:
-    """Slice minificado si hay ruta conocida; si no, SDL completo."""
+    """Slice por ruta; si no hay ruta, catch-all (nunca el SDL completo)."""
     from api.schema.schema import schema
 
     full = schema.as_str()
     route = (decisions or {}).get("ruta")
     kind = (decisions or {}).get("kind") or "-"
     if route not in ("dashboard", "datos", "estatus", "memoria"):
-        text = "Schema GraphQL exacto:\n" + full
-        print(f"[SLICE] ruta=none kind={kind} chars={len(text)} full={len(full)}")
+        text = "Schema GraphQL (slice catch-all):\n" + _CATCH_ALL
+        print(f"[SLICE] ruta=catch-all kind={kind} chars={len(text)} full={len(full)}")
         return text
     text = "Schema GraphQL (slice):\n" + _body(decisions)
     print(f"[SLICE] ruta={route} kind={kind} chars={len(text)} full={len(full)}")
@@ -145,7 +148,8 @@ if __name__ == "__main__":
         text = schema_for_prompt(decisions)
         assert needle in text, (decisions, needle)
         assert len(text) < len(full), (decisions, len(text), len(full))
-    exact = schema_for_prompt(None)
-    assert exact.startswith("Schema GraphQL exacto:")
-    assert len(exact) > len(full)
+    catch = schema_for_prompt(None)
+    assert catch.startswith("Schema GraphQL (slice catch-all):")
+    assert "crmClients" in catch and "buscarEstado" in catch and "kpis" in catch
+    assert len(catch) < len(full)
     print("ok")

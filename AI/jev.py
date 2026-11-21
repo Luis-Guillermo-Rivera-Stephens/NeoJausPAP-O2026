@@ -31,6 +31,26 @@ GRAPHIC = {
     "reporte": "bar",
 }
 
+# Si Jev no pasa el umbral de ruta, keywords locales (orden: más específico primero).
+_ROUTE_HINTS = (
+    ("dashboard", re.compile(
+        r"gr[aá]fico|kpi|tendencia|comparativ|reporte|dashboard|pastel|barras",
+        re.I,
+    )),
+    ("estatus", re.compile(
+        r"seguimiento|estatus|qu[eé]\s+pas[oó]|estado\s+de",
+        re.I,
+    )),
+    ("memoria", re.compile(
+        r"qu[eé]\s+(pregunt[eé]|dij[eé]|hablamos)|antes\s+en\s+(este\s+)?chat|memoria",
+        re.I,
+    )),
+    ("datos", re.compile(
+        r"conversaci|cliente|contacto|mensaje|topic|precio|asesor|lista|cu[aá]nt",
+        re.I,
+    )),
+)
+
 
 def period_bounds(now: datetime, period: str) -> tuple[str, str] | None:
     """since y until (until exclusivo) en America/Mexico_City. None si no hay corte."""
@@ -80,6 +100,31 @@ def _pick(answer, allowed: tuple[str, ...] | set[str]) -> str | None:
     if answer is None or answer.confidence < THRESHOLD or answer.choice not in allowed:
         return None
     return answer.choice
+
+
+def infer_route(text: str, decisions: dict | None = None) -> str | None:
+    """Ruta local si Jev no trajo una. advisor_id ⇒ datos; si no, keywords."""
+    if decisions and decisions.get("ruta") in ROUTES:
+        return None
+    if decisions and decisions.get("advisor_id"):
+        return "datos"
+    for route, pattern in _ROUTE_HINTS:
+        if pattern.search(text or ""):
+            return route
+    return None
+
+
+def ensure_route(message: str, decisions: dict | None) -> dict | None:
+    """Rellena ruta (y retier) cuando el umbral de Jev la descartó."""
+    guessed = infer_route(message, decisions)
+    if not guessed:
+        return decisions
+    out = dict(decisions or {})
+    out["ruta"] = guessed
+    picked = out.get("dificultad") if out.get("dificultad") in TIERS else None
+    out["dificultad"] = resolve_tier(guessed, picked)
+    print(f"[JEV] ruta inferida={guessed}")
+    return out
 
 
 def match_advisor(text: str, rows: list[dict]) -> tuple[str, str] | None:
@@ -152,12 +197,16 @@ async def classify(message: str, now: datetime | None = None) -> dict | None:
             "ruta": Choice(
                 instructions="Qué tiene que hacer el sistema con este mensaje",
                 criteria={
-                    "datos": "Cifra, lista, contacto, conversación o mensaje concreto",
+                    "datos": (
+                        "Lista, contacto, conversación, mensaje, topic/tema "
+                        "(p.ej. precios) o cifra suelta sin gráfica"
+                    ),
                     "dashboard": "Gráfica, KPI, tendencia, comparación o reporte visual",
                     "estatus": "Qué pasó, seguimiento o estado de un caso",
                     "memoria": "Algo dicho antes en este chat, no en WhatsApp",
                 },
             ),
+
             "periodo": Choice(
                 instructions="Qué rango de fechas pide. sin_fecha si no pide fechas",
                 criteria={
@@ -187,7 +236,7 @@ async def classify(message: str, now: datetime | None = None) -> dict | None:
             "dificultad": Choice(
                 instructions="Qué tan difícil es responder este mensaje",
                 criteria={
-                    "mini": "Saludo, charla o pregunta trivial, sin datos ni listas",
+                    "mini": "Solo saludo o charla; no si pide datos, listas, CRM o gráficas",
                     "medio": "Una consulta de datos, estatus o memoria con un filtro",
                     "alto": "Varios pasos, varios filtros, comparación o análisis",
                 },
@@ -201,9 +250,15 @@ async def classify(message: str, now: datetime | None = None) -> dict | None:
             response = await client.system_one(state=text, questions=questions)
         _log_usage(response)
         out: dict[str, str] = {}
-        route = _pick(response.choices.get("ruta"), ROUTES)
+        raw_ruta = response.choices.get("ruta")
+        route = _pick(raw_ruta, ROUTES)
         if route:
             out["ruta"] = route
+        elif raw_ruta is not None:
+            print(
+                f"[JEV] ruta descartada choice={getattr(raw_ruta, 'choice', None)!r} "
+                f"conf={getattr(raw_ruta, 'confidence', None)}"
+            )
         period = _pick(response.choices.get("periodo"), PERIODS)
         if period:
             bounds = period_bounds(now or datetime.now(MX), period)
@@ -251,6 +306,13 @@ if __name__ == "__main__":
     assert resolve_tier("datos", "medio") == "medio"
     assert resolve_tier("datos", None) == "mini"
     assert resolve_tier(None, None) == "mini"
+    assert infer_route("conversaciones de precios") == "datos"
+    assert infer_route("cliente reciente de rgomez", {"advisor_id": "x"}) == "datos"
+    assert infer_route("gráfico de asesores") == "dashboard"
+    assert infer_route("seguimiento de Ana Ortiz") == "estatus"
+    assert infer_route("hola") is None
+    filled = ensure_route("conversaciones de precios", {"dificultad": "mini"})
+    assert filled["ruta"] == "datos" and filled["dificultad"] == "mini"
     rows = [
         {"nickname": "jsalas", "uid": "c0000000-0000-4000-8000-000000000002"},
         {"nickname": "rgomez", "uid": "c0000000-0000-4000-8000-000000000001"},

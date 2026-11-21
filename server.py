@@ -23,7 +23,7 @@ from openai import APIConnectionError, APIError, APITimeoutError
 from AI.agent import TURN, agent, model_for
 from AI.dashboard import CHAT_ID, splice
 from AI.episode_chain import fill_missing_embeddings, process_pending
-from AI.jev import advisor_in_text, classify
+from AI.jev import advisor_in_text, classify, ensure_route
 from api.db.cache import take_dashboards
 from api.managers import memory as memory_mgr
 from api.schema.schema import schema
@@ -150,6 +150,7 @@ async def chat(body: ChatRequest) -> ChatResponse:
         decisions = dict(decisions or {})
         decisions["advisor"], decisions["advisor_id"] = named
         print(f"[JEV] asesor en el texto: {named[0]} uid={named[1]}")
+    decisions = ensure_route(body.message, decisions)
     hoy_line = f"Hoy es {hoy:%Y-%m-%d} (America/Mexico_City)."
     if not (decisions and decisions.get("since")):
         hoy_line += (
